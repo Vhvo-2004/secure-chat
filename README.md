@@ -51,11 +51,11 @@ Acesse `http://localhost:5173`.
 
 ### 2. Execução manual (sem Docker)
 
-1. Certifique-se de ter MongoDB em execução. Por padrão, o backend tentará conectar em `mongodb://localhost:27017/chat` sem autenticação.
-   - Caso utilize credenciais, defina `DATABASE_USER` e `DATABASE_PASSWORD` (e opcionalmente `DATABASE_NAME`, `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_AUTH_SOURCE`).
-   - Alternativamente, defina uma URI completa via `DATABASE_URI` (por exemplo `mongodb://user:pass@host:27017/chat?authSource=admin`).
+1. **Banco de dados** – o comando `npm run start:dev` do backend agora verifica se há MongoDB disponível em `localhost:27017`.
+   - Caso não encontre uma instância ativa, ele tentará automaticamente executar `docker compose up -d mongodb` na raiz do projeto (requer Docker instalado).
+   - Se preferir iniciar o banco manualmente ou estiver usando outro host/porta, defina `AUTO_START_MONGO=false` antes de rodar o script. Nesse cenário, garanta que as variáveis `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` (ou diretamente `DATABASE_URI`) estejam configuradas.
 
-2. Backend:
+2. **Backend**
 
 ```bash
 cd backend
@@ -63,7 +63,9 @@ npm install
 npm run start:dev
 ```
 
-3. Frontend:
+   - Para iniciar o NestJS sem a verificação automática, utilize `npm run start:dev:native`.
+
+3. **Frontend**
 
 ```bash
 cd frontend
@@ -111,6 +113,7 @@ npm run dev
 
 - `CannotDetermineTypeError: Cannot determine a type for the "Group.keyFingerprint" field` – ocorre quando o Mongoose não consegue inferir o tipo de uma propriedade opcional. O schema já foi atualizado com `@Prop({ type: String, default: null })`, portanto basta reinstalar e reconstruir o backend (`cd backend && npm install && npm run start:dev`).
 - `MongoParseError: Invalid connection string "mongodb://:@:/?authSource="` – indica que as variáveis de ambiente de banco foram deixadas vazias. Remova-as para usar a conexão local padrão ou configure `DATABASE_URI` com a string correta.
+- `MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017` – significa que não há MongoDB escutando no host/porta configurados. Ao executar `npm run start:dev`, o projeto tenta subir `docker compose up -d mongodb` automaticamente; verifique se o Docker está disponível ou suba o banco manualmente (`docker compose up -d mongodb`) antes de iniciar o backend. Se preferir ignorar essa verificação, execute `AUTO_START_MONGO=false npm run start:dev:native` e aponte o backend para um Mongo acessível.
 
 ## Implementação 3DES
 
