@@ -51,15 +51,9 @@ Acesse `http://localhost:5173`.
 
 ### 2. Execução manual (sem Docker)
 
-1. Certifique-se de ter MongoDB em execução e defina as variáveis de ambiente:
-
-```bash
-export DATABASE_HOST=localhost
-export DATABASE_PORT=27017
-export DATABASE_NAME=chat
-export DATABASE_USER=user
-export DATABASE_PASSWORD=password
-```
+1. Certifique-se de ter MongoDB em execução. Por padrão, o backend tentará conectar em `mongodb://localhost:27017/chat` sem autenticação.
+   - Caso utilize credenciais, defina `DATABASE_USER` e `DATABASE_PASSWORD` (e opcionalmente `DATABASE_NAME`, `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_AUTH_SOURCE`).
+   - Alternativamente, defina uma URI completa via `DATABASE_URI` (por exemplo `mongodb://user:pass@host:27017/chat?authSource=admin`).
 
 2. Backend:
 
@@ -116,6 +110,7 @@ npm run dev
 ## Solução de problemas
 
 - `CannotDetermineTypeError: Cannot determine a type for the "Group.keyFingerprint" field` – ocorre quando o Mongoose não consegue inferir o tipo de uma propriedade opcional. O schema já foi atualizado com `@Prop({ type: String, default: null })`, portanto basta reinstalar e reconstruir o backend (`cd backend && npm install && npm run start:dev`).
+- `MongoParseError: Invalid connection string "mongodb://:@:/?authSource="` – indica que as variáveis de ambiente de banco foram deixadas vazias. Remova-as para usar a conexão local padrão ou configure `DATABASE_URI` com a string correta.
 
 ## Implementação 3DES
 

@@ -16,15 +16,30 @@ import { MessagesModule } from './messages/messages.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const get_prop = (property: string): string => configService.get<string>(property) ?? "";
+        const providedUri = configService.get<string>('DATABASE_URI');
+        if (providedUri) {
+          return { uri: providedUri };
+        }
 
-        const host = get_prop('DATABASE_HOST');
-        const port = get_prop('DATABASE_PORT');
-        const user = get_prop('DATABASE_USER');
-        const pass = encodeURIComponent(get_prop('DATABASE_PASSWORD'));
-        const dbName = get_prop('DATABASE_NAME');
-        return {
-          uri: `mongodb://${user}:${pass}@${host}:${port}/${dbName}?authSource=${dbName}`};
+        const get = (property: string, fallback: string): string =>
+          configService.get<string>(property) ?? fallback;
+
+        const host = get('DATABASE_HOST', 'localhost');
+        const port = get('DATABASE_PORT', '27017');
+        const dbName = get('DATABASE_NAME', 'chat');
+        const authSource = get('DATABASE_AUTH_SOURCE', dbName);
+        const user = configService.get<string>('DATABASE_USER');
+        const password = configService.get<string>('DATABASE_PASSWORD');
+
+        if (user && password) {
+          const encodedUser = encodeURIComponent(user);
+          const encodedPass = encodeURIComponent(password);
+          return {
+            uri: `mongodb://${encodedUser}:${encodedPass}@${host}:${port}/${dbName}?authSource=${authSource}`
+          };
+        }
+
+        return { uri: `mongodb://${host}:${port}/${dbName}` };
       },
       inject: [ConfigService]
     }),
