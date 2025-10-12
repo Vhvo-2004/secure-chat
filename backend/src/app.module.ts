@@ -3,6 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { UsersModule } from './users/users.module';
+import { GroupsModule } from './groups/groups.module';
+import { KeyExchangeModule } from './key-exchange/key-exchange.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -23,7 +27,12 @@ import { AppService } from './app.service';
           uri: `mongodb://${user}:${pass}@${host}:${port}/${dbName}?authSource=${dbName}`};
       },
       inject: [ConfigService]
-    })],
+    }),
+    UsersModule,
+    GroupsModule,
+    KeyExchangeModule,
+    MessagesModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
