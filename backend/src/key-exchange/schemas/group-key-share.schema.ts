@@ -18,10 +18,10 @@ export class GroupKeyShare {
   @Prop({ required: true })
   encryptedGroupKey: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   keyIv?: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   keyAad?: string | null;
 
   @Prop({ default: false })
