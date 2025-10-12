@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { spawn } = require('child_process');
-const { ensureMongo } = require('./ensure-mongo');
+const { ensureMongo, StartupError } = require('./ensure-mongo');
 
 async function main() {
   const { uri, cleanup } = await ensureMongo();
@@ -52,6 +52,13 @@ async function main() {
 
 main().catch((error) => {
   console.error('[startup] Unable to start development server.');
-  console.error(error);
+
+  if (error instanceof StartupError || error?.isStartupHelp) {
+    console.error(error.message);
+    (error.help || []).forEach((line) => console.error(`[startup] ${line}`));
+  } else {
+    console.error(error);
+  }
+
   process.exit(1);
 });

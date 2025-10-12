@@ -6,6 +6,15 @@ const path = require('path');
 
 let MongoMemoryServer;
 
+class StartupError extends Error {
+  constructor(message, help = []) {
+    super(message);
+    this.name = 'StartupError';
+    this.isStartupHelp = true;
+    this.help = Array.isArray(help) ? help : [help].filter(Boolean);
+  }
+}
+
 const DEFAULT_PORT = 27017;
 const DEFAULT_HOST = 'localhost';
 const WAIT_TIMEOUT_MS = 60000;
@@ -84,8 +93,16 @@ async function startInMemoryMongo() {
     try {
       ({ MongoMemoryServer } = require('mongodb-memory-server'));
     } catch (error) {
-      console.error('[startup] mongodb-memory-server is not installed. Unable to provide in-memory fallback.');
-      console.error('[startup] Install it with "npm install --save-dev mongodb-memory-server".');
+      if (error?.code === 'MODULE_NOT_FOUND') {
+        throw new StartupError(
+          'mongodb-memory-server is not installed, so an in-memory MongoDB fallback cannot be started.',
+          [
+            'Install it locally with "npm install --save-dev mongodb-memory-server" (inside the backend directory) to enable the fallback.',
+            'Alternatively, start your own MongoDB instance and set DATABASE_URI or AUTO_START_MONGO=false before running npm run start:dev.'
+          ]
+        );
+      }
+
       throw error;
     }
   }
@@ -148,22 +165,45 @@ async function ensureMongo() {
     }
     console.error('[startup] MongoDB did not become ready in time. Falling back to in-memory instance.');
   } catch (error) {
+    const help = [
+      'Ensure Docker is running and that your user can access the docker socket.',
+      'If Docker is unavailable, install mongodb-memory-server or provide DATABASE_URI/AUTO_START_MONGO=false and start MongoDB manually.'
+    ];
+
     console.error('[startup] Failed to auto-start MongoDB using docker compose. Falling back to in-memory instance.');
     if (error) {
       console.error(String(error.message || error));
     }
+
+    if (error && error.message?.includes('permission denied')) {
+      help.unshift('Docker reported a permission error when pulling or starting mongo: grant docker access or run the command with sufficient privileges.');
+    }
+
+    // Provide the same guidance if we later fail to launch mongodb-memory-server
+    ensureMongo.lastDockerHelp = help;
   }
 
   try {
     return await startInMemoryMongo();
   } catch (error) {
+    const help = ensureMongo.lastDockerHelp || [
+      'Start a MongoDB instance manually and expose it via DATABASE_URI, or disable auto bootstrap with AUTO_START_MONGO=false.'
+    ];
+
     console.error('[startup] Unable to start mongodb-memory-server.');
-    throw error;
+
+    if (error?.isStartupHelp) {
+      error.help = [...error.help, ...help];
+      throw error;
+    }
+
+    throw new StartupError(error?.message || String(error), help);
   }
 }
 
 module.exports = {
-  ensureMongo
+  ensureMongo,
+  StartupError
 };
 
 if (require.main === module) {
