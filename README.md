@@ -32,7 +32,7 @@ docker compose up --build
 ```
 
 Serviços expostos:
-- Backend NestJS: `http://localhost:8080`
+- Backend NestJS: `http://localhost:3000`
 - MongoDB: `localhost:27017`
 
 Para executar o frontend, abra um novo terminal:
@@ -40,10 +40,12 @@ Para executar o frontend, abra um novo terminal:
 ```bash
 cd frontend
 npm install  # apenas para instalar dependências locais
-npm run dev -- --host 0.0.0.0 --port 5173
+VITE_API_URL=http://localhost:3000 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
 Acesse `http://localhost:5173`.
+
+> **Dica:** o frontend assume por padrão `http://localhost:3000` como base da API. Ajuste a variável `VITE_API_URL` caso exponha o backend em outra porta/host.
 
 > **Nota:** caso não possua acesso externo ao npm, as dependências já estão vendorizadas no repositório (`node_modules`).
 
