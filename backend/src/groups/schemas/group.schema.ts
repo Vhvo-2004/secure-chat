@@ -12,7 +12,7 @@ export class Group {
   @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
   members: Types.ObjectId[];
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   keyFingerprint?: string | null;
 }
 

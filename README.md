@@ -84,6 +84,39 @@ npm run dev
 3. Convites pendentes aparecem na coluna da esquerda. Ao importar, a chave simétrica é decapsulada e armazenada localmente.
 4. As mensagens digitadas são cifradas com 3DES no cliente antes de serem enviadas.
 
+## Guia passo a passo: criando e usando um chat seguro
+
+1. **Registrar identidade**
+   - Informe um nome de usuário e clique em **Gerar identidade & registrar**.
+   - O navegador gera par de chaves X25519 para cifragem, assina uma Signed Pre-Key e cria 10 One-Time Pre-Keys.
+   - Apenas as chaves públicas são enviadas ao backend; o restante permanece em `localStorage`.
+
+2. **Convidar participantes e criar o grupo**
+   - Após registrar-se, utilize o painel “Usuários disponíveis” para selecionar quem participará.
+   - Clique em **Criar grupo**, defina um nome e confirme. Automaticamente:
+     - Uma chave 3DES aleatória de 24 bytes é gerada no cliente.
+     - Para cada convidado, o frontend solicita ao backend o bundle público (`/key-exchange/request`).
+     - O X3DH é executado localmente e o segredo resultante encapsula a chave 3DES, enviada via `/key-exchange/share`.
+
+3. **Aceitar convites**
+   - Usuários convidados verão notificações na coluna “Convites pendentes”.
+   - Ao clicar em **Importar chave**, o aplicativo:
+     - Recupera o pacote X3DH, decapsula a chave 3DES e grava o fingerprint localmente.
+     - Marca o convite como consumido em `/key-exchange/pending/:shareId/consume`.
+
+4. **Enviar e receber mensagens**
+   - Com a chave 3DES disponível, basta selecionar o grupo e digitar a mensagem.
+   - O texto é cifrado com DES-EDE3-CBC (PKCS#7) antes de ser enviado para `/groups/:groupId/messages`.
+   - Mensagens recebidas são decifradas automaticamente usando a chave local.
+
+5. **Rotina de segurança recomendada**
+   - Reimporte sua identidade em um novo navegador copiando o conteúdo salvo em `localStorage`.
+   - Caso suspeite de comprometimento, crie um novo grupo para os mesmos participantes; uma nova chave 3DES será distribuída.
+
+## Solução de problemas
+
+- `CannotDetermineTypeError: Cannot determine a type for the "Group.keyFingerprint" field` – ocorre quando o Mongoose não consegue inferir o tipo de uma propriedade opcional. O schema já foi atualizado com `@Prop({ type: String, default: null })`, portanto basta reinstalar e reconstruir o backend (`cd backend && npm install && npm run start:dev`).
+
 ## Implementação 3DES
 
 Foi implementada uma versão reduzida do algoritmo 3DES (DES-EDE3-CBC com PKCS#7) em `frontend/src/crypto/triple-des.js`. A implementação segue FIPS 46-3 e utiliza apenas recursos nativos do browser.
