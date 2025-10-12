@@ -53,6 +53,7 @@ Acesse `http://localhost:5173`.
 
 1. **Banco de dados** – o comando `npm run start:dev` do backend agora verifica se há MongoDB disponível em `localhost:27017`.
    - Caso não encontre uma instância ativa, ele tentará automaticamente executar `docker compose up -d mongodb` na raiz do projeto (requer Docker instalado).
+   - Se o Docker não estiver disponível ou o container não iniciar a tempo, o script pode criar uma instância temporária usando [`mongodb-memory-server`](https://github.com/nodkz/mongodb-memory-server) (execute `npm install --save-dev mongodb-memory-server` uma vez para habilitar o fallback) e exporta a string de conexão via `DATABASE_URI`. Basta finalizar o processo para encerrar o banco em memória.
    - Se preferir iniciar o banco manualmente ou estiver usando outro host/porta, defina `AUTO_START_MONGO=false` antes de rodar o script. Nesse cenário, garanta que as variáveis `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` (ou diretamente `DATABASE_URI`) estejam configuradas.
 
 2. **Backend**
@@ -113,7 +114,7 @@ npm run dev
 
 - `CannotDetermineTypeError: Cannot determine a type for the "Group.keyFingerprint" field` – ocorre quando o Mongoose não consegue inferir o tipo de uma propriedade opcional. O schema já foi atualizado com `@Prop({ type: String, default: null })`, portanto basta reinstalar e reconstruir o backend (`cd backend && npm install && npm run start:dev`).
 - `MongoParseError: Invalid connection string "mongodb://:@:/?authSource="` – indica que as variáveis de ambiente de banco foram deixadas vazias. Remova-as para usar a conexão local padrão ou configure `DATABASE_URI` com a string correta.
-- `MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017` – significa que não há MongoDB escutando no host/porta configurados. Ao executar `npm run start:dev`, o projeto tenta subir `docker compose up -d mongodb` automaticamente; verifique se o Docker está disponível ou suba o banco manualmente (`docker compose up -d mongodb`) antes de iniciar o backend. Se preferir ignorar essa verificação, execute `AUTO_START_MONGO=false npm run start:dev:native` e aponte o backend para um Mongo acessível.
+- `MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017` – significa que não há MongoDB escutando no host/porta configurados. Ao executar `npm run start:dev`, o projeto tenta subir `docker compose up -d mongodb` automaticamente; se isso falhar e você tiver instalado `mongodb-memory-server` (`npm install --save-dev mongodb-memory-server`), um MongoDB em memória será iniciado e usado através de `DATABASE_URI`. Caso contrário, suba o banco manualmente ou execute `AUTO_START_MONGO=false npm run start:dev:native` apontando para uma instância acessível.
 
 ## Implementação 3DES
 
