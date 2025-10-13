@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { use, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   deserializePrivateBundle,
   exportPublicBundle,
@@ -15,9 +15,10 @@ import { decryptMessage3DES, encryptMessage3DES, random3DesKey } from './crypto/
 import './App.css';
 
 const STORAGE_KEYS = {
-  user: 'secure-chat/user',
-  bundle: 'secure-chat/private-bundle',
-  groupKeys: 'secure-chat/group-keys',
+  user: 'secure-chat/user/',
+  bundle: 'secure-chat/private-bundle/',
+  groupKeys: 'secure-chat/group-keys/',
+  currentUser: 'secure-chat/currentUser',
 };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5173/api';
@@ -44,6 +45,7 @@ function safeJsonParse(value, fallback) {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserData, setCurrentUserData] = useState(null);
   const [privateBundle, setPrivateBundle] = useState(null);
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -79,7 +81,7 @@ export default function App() {
     });
   }, []);
 
-  const consumeOneTimePreKey = useCallback((rawIndex) => {
+  const consumeOneTimePreKey = useCallback((username, rawIndex) => {
     const normalized =
       rawIndex === null || rawIndex === undefined
         ? null
@@ -101,7 +103,8 @@ export default function App() {
       const nextBundle = { ...prev, oneTimePreKeys: nextPreKeys };
       const serialized = serializePrivateBundle(nextBundle);
       if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEYS.bundle, JSON.stringify(serialized));
+        console.log(1, username);
+        localStorage.setItem(`${STORAGE_KEYS.bundle}${username}`, JSON.stringify(serialized));
       }
       return deserializePrivateBundle(serialized);
     });
@@ -109,11 +112,14 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const storedUser = safeJsonParse(localStorage.getItem(STORAGE_KEYS.user), null);
-    const storedBundle = safeJsonParse(localStorage.getItem(STORAGE_KEYS.bundle), null);
-    const storedKeys = safeJsonParse(localStorage.getItem(STORAGE_KEYS.groupKeys), {});
+    const currentUser = safeJsonParse(sessionStorage.getItem(STORAGE_KEYS.currentUser), null);
+    console.log(STORAGE_KEYS.currentUser, currentUser);
+    setCurrentUser(currentUser);
+    const storedBundle = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.bundle}${currentUser}`), null);
+    const storedKeys = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.groupKeys}${currentUser}`), {});
+    const storedUser = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.user}${currentUser}`), null);
 
-    if (storedUser) setCurrentUser(storedUser);
+    if (currentUser && storedUser) setCurrentUserData(storedUser);
     if (storedBundle) setPrivateBundle(deserializePrivateBundle(storedBundle));
     if (storedKeys) setGroupKeys(storedKeys);
   }, []);
@@ -123,7 +129,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUserData) {
       setGroups([]);
       setPendingShares([]);
       setSelectedGroupId(null);
@@ -132,15 +138,15 @@ export default function App() {
     }
     refreshGroups();
     refreshPendingShares();
-  }, [currentUser]);
+  }, [currentUserData]);
 
   useEffect(() => {
-    if (!currentUser || !selectedGroupId) {
+    if (!currentUserData || !selectedGroupId) {
       setMessages([]);
       return;
     }
     refreshMessages(selectedGroupId);
-  }, [currentUser, selectedGroupId]);
+  }, [currentUserData, selectedGroupId]);
 
   async function fetchJson(url, options = {}) {
     const res = await fetch(url, {
@@ -157,23 +163,35 @@ export default function App() {
 
   function persistUser(user) {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
-    setCurrentUser(user);
+    sessionStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(user.username));
+    localStorage.setItem(`${STORAGE_KEYS.user}${user.username}`, JSON.stringify(user));
+    setCurrentUser(user.username);
+    setCurrentUserData(user);
+    console.log('user persisted');
   }
 
-  function persistBundle(bundle) {
+  function searchUser(username){
+    if (typeof username !== 'string' || username.trim() === '')
+      return null;
+
+    const searchedUser = safeJsonParse(sessionStorage.getItem(`${STORAGE_KEYS.user}${username}`), null);
+    return searchedUser;
+  }
+
+  function persistBundle(bundle, username) {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEYS.bundle, JSON.stringify(bundle));
+    localStorage.setItem(`${STORAGE_KEYS.bundle}${username}`, JSON.stringify(bundle));
     setPrivateBundle(deserializePrivateBundle(bundle));
   }
 
-  function persistGroupKeys(next) {
+  function persistGroupKeys(next, username) {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEYS.groupKeys, JSON.stringify(next));
+    console.log(2, username);
+    localStorage.setItem(`${STORAGE_KEYS.groupKeys}${username}`, JSON.stringify(next));
     setGroupKeys(next);
   }
 
-  function storeGroupKey(groupId, keyInput, options = {}) {
+  function storeGroupKey(username, groupId, keyInput, options = {}) {
     if (!groupId || !keyInput) return;
     const bytes = typeof keyInput === 'string' ? fromB64(keyInput) : keyInput;
     const keyB64 = typeof keyInput === 'string' ? keyInput : toB64(bytes);
@@ -186,7 +204,8 @@ export default function App() {
         updatedAt: Date.now(),
       },
     };
-    persistGroupKeys(next);
+    console.log(username);
+    persistGroupKeys(next, username);
 
     if (options.log === false) {
       return;
@@ -230,7 +249,7 @@ export default function App() {
 
   async function refreshGroups() {
     try {
-      const data = await fetchJson(`${API_BASE}/groups?userId=${currentUser.id}`);
+      const data = await fetchJson(`${API_BASE}/groups?userId=${currentUserData.id}`);
       const normalized = data
         .map((group) => {
           const id = extractId(group);
@@ -272,9 +291,9 @@ export default function App() {
   }
 
   async function refreshPendingShares() {
-    if (!currentUser) return;
+    if (!currentUserData) return;
     try {
-      const data = await fetchJson(`${API_BASE}/key-exchange/pending/${currentUser.id}`);
+      const data = await fetchJson(`${API_BASE}/key-exchange/pending/${currentUserData.id}`);
       const normalized = data
         .map((share) => {
           const id = extractId(share);
@@ -308,12 +327,27 @@ export default function App() {
     }
   }
 
+  function handleLogin(username){
+    const searchResult = searchUser(username);
+    if (!searchResult)
+        return false;
+    sessionStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(username))
+    setCurrentUser(username);
+    // persistUser(normalizedUser);
+    // persistBundle(serialized, normalizedUser.username);
+    // setUsernameInput('');
+    // setStatus('Identidade registrada com sucesso.');
+    // refreshUsers();
+  }
+
   async function handleRegisterUser(evt) {
     evt?.preventDefault();
     if (!usernameInput.trim()) {
       setStatus('Informe um nome de usuário.');
       return;
     }
+    const exists = handleLogin(usernameInput.trim());
+    if (exists) return;
     setIsBusy(true);
     try {
       const bundle = generateBundle(10);
@@ -346,7 +380,7 @@ export default function App() {
       });
       const normalizedUser = { ...user, id: extractId(user) ?? user.id };
       persistUser(normalizedUser);
-      persistBundle(serialized);
+      persistBundle(serialized, normalizedUser.username);
       appendCryptoLog({
         phase: 'Identidade',
         title: 'Bundle público publicado',
@@ -383,12 +417,13 @@ export default function App() {
   }
 
   function handleLogout() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEYS.user);
-      localStorage.removeItem(STORAGE_KEYS.bundle);
-      localStorage.removeItem(STORAGE_KEYS.groupKeys);
-    }
-    setCurrentUser(null);
+    // if (typeof window !== 'undefined') {
+    //   localStorage.removeItem(STORAGE_KEYS.user);
+    //   localStorage.removeItem(STORAGE_KEYS.bundle);
+    //   localStorage.removeItem(STORAGE_KEYS.groupKeys);
+    // }
+    sessionStorage.clear()
+    setCurrentUserData(null);
     setPrivateBundle(null);
     setGroupKeys({});
     setGroups([]);
@@ -411,7 +446,7 @@ export default function App() {
 
   async function handleCreateGroup(evt) {
     evt?.preventDefault();
-    if (!currentUser || !privateBundle) {
+    if (!currentUserData || !privateBundle) {
       setStatus('Gere e registre sua identidade antes de criar grupos.');
       return;
     }
@@ -423,12 +458,12 @@ export default function App() {
     try {
       const targetMembers = groupMemberSelections
         .filter(Boolean)
-        .filter((id) => id !== currentUser.id);
+        .filter((id) => id !== currentUserData.id);
       const keyBytes = random3DesKey();
       const fingerprint = fingerprintKey(keyBytes);
       const groupPayload = {
         name: groupNameInput.trim(),
-        creator: currentUser.id,
+        creator: currentUserData.id,
         members: targetMembers,
         keyFingerprint: fingerprint,
       };
@@ -439,7 +474,7 @@ export default function App() {
         reason:
           'Precisamos registrar o grupo no backend para orquestrar convites e mensagens cifradas.',
         artifacts: [
-          { label: 'Criador', value: currentUser.username },
+          { label: 'Criador', value: currentUserData.username },
           {
             label: 'Participantes convidados',
             value:
@@ -461,7 +496,7 @@ export default function App() {
       if (!groupId) {
         throw new Error('Resposta de criação do grupo inválida (id ausente).');
       }
-      storeGroupKey(groupId, keyBytes, {
+      storeGroupKey(currentUser, groupId, keyBytes, {
         phase: 'Chaves de grupo',
         title: 'Chave 3DES gerada para o novo grupo',
         description: `Geramos uma chave simétrica única para o grupo "${groupPayload.name}".`,
@@ -469,7 +504,7 @@ export default function App() {
         groupName: groupPayload.name,
         artifacts: [
           { label: 'Fingerprint esperado', value: fingerprint },
-          { label: 'Membros iniciais', value: [currentUser.id, ...targetMembers].length },
+          { label: 'Membros iniciais', value: [currentUserData.id, ...targetMembers].length },
         ],
       });
       setGroups((prev) => [
@@ -503,7 +538,7 @@ export default function App() {
         try {
           const bundle = await fetchJson(`${API_BASE}/key-exchange/request`, {
             method: 'POST',
-            body: JSON.stringify({ receiverId: memberId, initiatorId: currentUser.id }),
+            body: JSON.stringify({ receiverId: memberId, initiatorId: currentUserData.id }),
           });
           const { packet, rootKeyBytes } = await performX3DHInitiatorAndCreatePacket(privateBundle, bundle);
           const wrapped = await wrapDataWithRootKey(rootKeyBytes, keyBytes, '3des-group-key');
@@ -511,7 +546,7 @@ export default function App() {
             method: 'POST',
             body: JSON.stringify({
               groupId,
-              senderId: currentUser.id,
+              senderId: currentUserData.id,
               receiverId: memberId,
               packet,
               encryptedGroupKey: wrapped.cipher,
@@ -569,7 +604,7 @@ export default function App() {
 
   async function handleSendMessage(evt) {
     evt?.preventDefault();
-    if (!currentUser || !selectedGroupId) return;
+    if (!currentUserData || !selectedGroupId) return;
     if (!messageInput.trim()) return;
     const key = resolveGroupKey(selectedGroupId);
     if (!key) {
@@ -592,7 +627,7 @@ export default function App() {
       await fetchJson(`${API_BASE}/groups/${selectedGroupId}/messages`, {
         method: 'POST',
         body: JSON.stringify({
-          senderId: currentUser.id,
+          senderId: currentUserData.id,
           ciphertext,
           iv,
         }),
@@ -610,8 +645,14 @@ export default function App() {
     }
   }
 
-  async function handleAcceptShare(shareId) {
-    if (!currentUser || !privateBundle) return;
+  function handleShare(shareId){
+    const user = currentUser;
+    console.log(4, user);
+    handleAcceptShare(shareId, user);
+  }
+
+  async function handleAcceptShare(shareId, username) {
+    if (!currentUserData || !privateBundle) return;
     const share = pendingShares.find((item) => item.id === shareId);
     if (!share) return;
     try {
@@ -621,7 +662,7 @@ export default function App() {
           share.packet,
         );
       if (usedOpkIndex !== null && usedOpkIndex !== undefined) {
-        consumeOneTimePreKey(usedOpkIndex);
+        consumeOneTimePreKey(username, usedOpkIndex);
       }
       const plainBytes = await unwrapDataWithRootKey(rootKeyBytes, {
         cipher: share.encryptedGroupKey,
@@ -661,7 +702,8 @@ export default function App() {
       });
 
       const groupName = typeof share.group === 'object' ? share.group.name : null;
-      storeGroupKey(groupId, plainBytes, {
+      console.log(3, username);
+      storeGroupKey(username, groupId, plainBytes, {
         phase: 'Chaves de grupo',
         title: 'Chave 3DES importada',
         description: `Chave do grupo "${groupName ?? groupId}" decifrada e armazenada localmente.`,
@@ -742,12 +784,12 @@ export default function App() {
   }
 
   function renderUsersList() {
-    if (!currentUser) return null;
+    if (!currentUserData) return null;
     return (
       <div className="card">
         <h3>Usuários cadastrados</h3>
         <ul className="list">
-          {users.filter((u) => u.id !== currentUser.id).map((user) => (
+          {users.filter((u) => u.id !== currentUserData.id).map((user) => (
             <li key={user.id}>{user.username}</li>
           ))}
         </ul>
@@ -756,7 +798,7 @@ export default function App() {
   }
 
   function renderGroups() {
-    if (!currentUser) return null;
+    if (!currentUserData) return null;
     return (
       <div className="card">
         <h3>Grupos</h3>
@@ -788,7 +830,7 @@ export default function App() {
   }
 
   function renderCreateGroup() {
-    if (!currentUser) return null;
+    if (!currentUserData) return null;
     return (
       <div className="card">
         <h3>Novo grupo</h3>
@@ -805,7 +847,7 @@ export default function App() {
           <span className="hint">Selecione os participantes (você é incluído automaticamente).</span>
           <div className="members-grid">
             {users
-              .filter((u) => u.id !== currentUser.id)
+              .filter((u) => u.id !== currentUserData.id)
               .map((user) => (
                 <label key={user.id} className="member-option">
                   <input
@@ -826,7 +868,7 @@ export default function App() {
   }
 
   function renderPendingShares() {
-    if (!currentUser || pendingShares.length === 0) return null;
+    if (!currentUserData || pendingShares.length === 0) return null;
     return (
       <div className="card">
         <h3>Convites pendentes</h3>
@@ -844,7 +886,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                <button onClick={() => handleAcceptShare(share.id)}>Importar chave</button>
+                <button onClick={() => handleShare(share.id)}>Importar chave</button>
               </li>
             );
           })}
@@ -854,7 +896,7 @@ export default function App() {
   }
 
   function renderChat() {
-    if (!currentUser || !selectedGroup) {
+    if (!currentUserData || !selectedGroup) {
       return (
         <div className="card">
           <h3>Mensagens</h3>
@@ -909,9 +951,9 @@ export default function App() {
     <div className="app-container">
       <header>
         <h1>Secure Chat · Sessões X3DH + 3DES</h1>
-        {currentUser ? (
+        {currentUserData ? (
           <div className="user-info">
-            <span>Conectado como {currentUser.username}</span>
+            <span>Conectado como {currentUserData.username}</span>
             <button onClick={handleLogout}>Encerrar sessão local</button>
           </div>
         ) : (
