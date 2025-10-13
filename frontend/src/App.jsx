@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   deserializePrivateBundle,
   exportPublicBundle,
@@ -53,6 +53,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [status, setStatus] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [cryptoLog, setCryptoLog] = useState([]);
 
   const [usernameInput, setUsernameInput] = useState('');
   const [groupNameInput, setGroupNameInput] = useState('');
@@ -63,6 +64,48 @@ export default function App() {
     () => groups.find((g) => g.id === selectedGroupId) ?? null,
     [groups, selectedGroupId],
   );
+
+  const appendCryptoLog = useCallback((entry) => {
+    setCryptoLog((prev) => {
+      const next = [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          timestamp: Date.now(),
+          ...entry,
+        },
+        ...prev,
+      ];
+      return next.slice(0, 200);
+    });
+  }, []);
+
+  const consumeOneTimePreKey = useCallback((rawIndex) => {
+    const normalized =
+      rawIndex === null || rawIndex === undefined
+        ? null
+        : typeof rawIndex === 'string'
+        ? parseInt(rawIndex, 10)
+        : rawIndex;
+    if (normalized === null || Number.isNaN(normalized)) {
+      return;
+    }
+    setPrivateBundle((prev) => {
+      if (!prev) return prev;
+      const nextPreKeys = prev.oneTimePreKeys.filter((kp, idx) => {
+        const kpIndex = kp.index ?? idx;
+        return kpIndex !== normalized;
+      });
+      if (nextPreKeys.length === prev.oneTimePreKeys.length) {
+        return prev;
+      }
+      const nextBundle = { ...prev, oneTimePreKeys: nextPreKeys };
+      const serialized = serializePrivateBundle(nextBundle);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.bundle, JSON.stringify(serialized));
+      }
+      return deserializePrivateBundle(serialized);
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -128,6 +171,45 @@ export default function App() {
     if (typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.groupKeys, JSON.stringify(next));
     setGroupKeys(next);
+  }
+
+  function storeGroupKey(groupId, keyInput, options = {}) {
+    if (!groupId || !keyInput) return;
+    const bytes = typeof keyInput === 'string' ? fromB64(keyInput) : keyInput;
+    const keyB64 = typeof keyInput === 'string' ? keyInput : toB64(bytes);
+    const fingerprint = fingerprintKey(bytes);
+    const next = {
+      ...groupKeys,
+      [groupId]: {
+        key: keyB64,
+        fingerprint,
+        updatedAt: Date.now(),
+      },
+    };
+    persistGroupKeys(next);
+
+    if (options.log === false) {
+      return;
+    }
+
+    appendCryptoLog({
+      phase: options.phase ?? 'Chaves de grupo',
+      title: options.title ?? 'Chave 3DES armazenada',
+      description:
+        options.description ??
+        'A chave simétrica do grupo foi salva no storage local para uso futuro.',
+      reason:
+        options.reason ??
+        'Sem essa chave 3DES não conseguimos cifrar nem decifrar as mensagens do grupo.',
+      artifacts: [
+        { label: 'Grupo', value: options.groupName ?? groupId },
+        { label: 'Fingerprint registrada', value: fingerprint },
+        ...(options.showKey === false
+          ? []
+          : [{ label: 'Chave 3DES (base64)', value: keyB64 }]),
+        ...(options.artifacts ?? []),
+      ],
+    });
   }
 
   async function refreshUsers() {
@@ -237,6 +319,19 @@ export default function App() {
       const bundle = generateBundle(10);
       const serialized = serializePrivateBundle(bundle);
       const publicBundle = exportPublicBundle(bundle);
+      appendCryptoLog({
+        phase: 'Identidade',
+        title: 'Bundle X3DH gerado localmente',
+        description: 'Criamos pares de chaves de identidade, assinatura, signed pre-key e 10 one-time pre-keys.',
+        reason: 'O protocolo X3DH depende desse conjunto para autenticar usuários e oferecer sigilo direto.',
+        artifacts: [
+          { label: 'IK (box) pública', value: toB64(bundle.identityKeyBox.publicKey) },
+          { label: 'IK (assinatura) pública', value: toB64(bundle.identityKeySign.publicKey) },
+          { label: 'Signed pre-key', value: toB64(bundle.signedPreKey.publicKey) },
+          { label: 'Assinatura da signed pre-key', value: toB64(bundle.signature) },
+          { label: 'One-time pre-keys', value: bundle.oneTimePreKeys.length },
+        ],
+      });
       const payload = {
         username: usernameInput.trim(),
         identityKeyBox: publicBundle.identityKeyBox,
@@ -252,11 +347,36 @@ export default function App() {
       const normalizedUser = { ...user, id: extractId(user) ?? user.id };
       persistUser(normalizedUser);
       persistBundle(serialized);
+      appendCryptoLog({
+        phase: 'Identidade',
+        title: 'Bundle público publicado',
+        description: `O servidor armazenou o material público de ${payload.username}.`,
+        reason: 'Outros clientes precisam dessas pre-keys para iniciar convites X3DH com autenticação.',
+        artifacts: [
+          { label: 'Usuário', value: normalizedUser.username },
+          { label: 'One-time pre-keys disponíveis', value: payload.oneTimePreKeys.length },
+        ],
+      });
+      appendCryptoLog({
+        phase: 'Identidade',
+        title: 'Bundle privado guardado no navegador',
+        description: 'Persistimos as chaves secretas serializadas no armazenamento local.',
+        reason: 'Precisamos recuperar esse material para responder a convites e decifrar envelopes.',
+        artifacts: [
+          { label: 'Campos preservados', value: Object.keys(serialized).join(', ') },
+        ],
+      });
       setUsernameInput('');
       setStatus('Identidade registrada com sucesso.');
       refreshUsers();
     } catch (err) {
       setStatus(`Não foi possível registrar: ${err.message}`);
+      appendCryptoLog({
+        phase: 'Identidade',
+        title: 'Falha ao registrar identidade',
+        description: `Erro durante o cadastro: ${err.message}`,
+        reason: 'Registrar a falha ajuda a identificar se o problema ocorreu antes do upload das chaves.',
+      });
     } finally {
       setIsBusy(false);
     }
@@ -289,20 +409,6 @@ export default function App() {
     });
   }
 
-  function storeGroupKey(groupId, keyBytes) {
-    const keyB64 = typeof keyBytes === 'string' ? keyBytes : toB64(keyBytes);
-    const bytes = typeof keyBytes === 'string' ? fromB64(keyBytes) : keyBytes;
-    const next = {
-      ...groupKeys,
-      [groupId]: {
-        key: keyB64,
-        fingerprint: fingerprintKey(bytes),
-        updatedAt: Date.now(),
-      },
-    };
-    persistGroupKeys(next);
-  }
-
   async function handleCreateGroup(evt) {
     evt?.preventDefault();
     if (!currentUser || !privateBundle) {
@@ -326,6 +432,26 @@ export default function App() {
         members: targetMembers,
         keyFingerprint: fingerprint,
       };
+      appendCryptoLog({
+        phase: 'Grupos',
+        title: 'Solicitação de criação de grupo',
+        description: `Preparando o grupo "${groupPayload.name}" com fingerprint ${fingerprint}.`,
+        reason:
+          'Precisamos registrar o grupo no backend para orquestrar convites e mensagens cifradas.',
+        artifacts: [
+          { label: 'Criador', value: currentUser.username },
+          {
+            label: 'Participantes convidados',
+            value:
+              targetMembers.length > 0
+                ? targetMembers
+                    .map((id) => users.find((u) => u.id === id)?.username ?? id)
+                    .join(', ')
+                : 'Somente o criador',
+          },
+        ],
+      });
+
       const group = await fetchJson(`${API_BASE}/groups`, {
         method: 'POST',
         body: JSON.stringify(groupPayload),
@@ -335,7 +461,17 @@ export default function App() {
       if (!groupId) {
         throw new Error('Resposta de criação do grupo inválida (id ausente).');
       }
-      storeGroupKey(groupId, keyBytes);
+      storeGroupKey(groupId, keyBytes, {
+        phase: 'Chaves de grupo',
+        title: 'Chave 3DES gerada para o novo grupo',
+        description: `Geramos uma chave simétrica única para o grupo "${groupPayload.name}".`,
+        reason: 'Cada grupo precisa de uma chave exclusiva para manter o isolamento das conversas.',
+        groupName: groupPayload.name,
+        artifacts: [
+          { label: 'Fingerprint esperado', value: fingerprint },
+          { label: 'Membros iniciais', value: [currentUser.id, ...targetMembers].length },
+        ],
+      });
       setGroups((prev) => [
         { ...normalizedGroup, id: groupId },
         ...prev.filter((g) => g.id !== groupId),
@@ -344,6 +480,20 @@ export default function App() {
       setGroupNameInput('');
       setGroupMemberSelections([]);
       setStatus('Grupo criado. Distribuindo a chave...');
+
+      appendCryptoLog({
+        phase: 'Grupos',
+        title: 'Grupo registrado no backend',
+        description: `O backend confirmou o grupo "${normalizedGroup.name ?? groupPayload.name}".`,
+        reason: 'Somente após o registro podemos distribuir chaves e trocar mensagens.',
+        artifacts: [
+          { label: 'ID do grupo', value: groupId },
+          {
+            label: 'Fingerprint registrada',
+            value: normalizedGroup.keyFingerprint ?? fingerprint,
+          },
+        ],
+      });
 
       for (const memberId of targetMembers) {
         if (!memberId) {
@@ -369,9 +519,38 @@ export default function App() {
               keyAad: wrapped.aad,
             }),
           });
+
+          const receiverUser = users.find((u) => u.id === memberId);
+          appendCryptoLog({
+            phase: 'Distribuição X3DH',
+            title: `Envelope enviado para ${receiverUser?.username ?? memberId}`,
+            description:
+              'Derivamos a root key combinando IK, SPK, EK e OPK e ciframos a chave 3DES com AES-GCM.',
+            reason:
+              'Esse passo garante que somente o convidado consiga recuperar a chave do grupo com autenticidade.',
+            artifacts: [
+              { label: 'Grupo', value: normalizedGroup.name ?? groupPayload.name },
+              { label: 'Destinatário', value: receiverUser?.username ?? memberId },
+              { label: 'Root key (base64)', value: toB64(rootKeyBytes) },
+              {
+                label: 'OPK utilizada',
+                value: packet.opk_index !== null && packet.opk_index !== undefined ? packet.opk_index : 'Nenhuma',
+              },
+              { label: 'EK_A pública', value: packet.EK_A_pub },
+              { label: 'AAD do envelope', value: packet.aad },
+              { label: 'Cipher AES-GCM', value: wrapped.cipher },
+            ],
+          });
         } catch (err) {
           console.error('Falha ao compartilhar chave com membro', memberId, err);
           setStatus(`Chave criada, mas não foi possível compartilhar com um dos membros (${err.message}).`);
+          appendCryptoLog({
+            phase: 'Distribuição X3DH',
+            title: `Falha ao compartilhar com ${memberId}`,
+            description: `Não conseguimos enviar o envelope seguro: ${err.message}`,
+            reason:
+              'Sem distribuir o envelope X3DH o destinatário não terá a chave 3DES e ficará excluído do grupo.',
+          });
         }
       }
       refreshPendingShares();
@@ -399,6 +578,17 @@ export default function App() {
     }
     try {
       const { ciphertext, iv } = encryptMessage3DES(messageInput.trim(), key);
+      appendCryptoLog({
+        phase: 'Mensagens',
+        title: 'Mensagem cifrada com 3DES',
+        description: `Conteúdo cifrado antes do envio para o grupo "${selectedGroup.name}".`,
+        reason: 'O servidor só deve receber mensagens já cifradas para manter o sigilo fim a fim.',
+        artifacts: [
+          { label: 'Ciphertext', value: ciphertext },
+          { label: 'IV', value: iv },
+          { label: 'Mensagem original', value: messageInput.trim() },
+        ],
+      });
       await fetchJson(`${API_BASE}/groups/${selectedGroupId}/messages`, {
         method: 'POST',
         body: JSON.stringify({
@@ -411,6 +601,12 @@ export default function App() {
       refreshMessages(selectedGroupId);
     } catch (err) {
       setStatus(`Não foi possível enviar a mensagem: ${err.message}`);
+      appendCryptoLog({
+        phase: 'Mensagens',
+        title: 'Falha ao cifrar/enviar mensagem',
+        description: `Erro ao enviar para ${selectedGroup.name}: ${err.message}`,
+        reason: 'Registrar a falha ajuda a entender se o problema ocorreu antes ou depois da criptografia.',
+      });
     }
   }
 
@@ -419,7 +615,14 @@ export default function App() {
     const share = pendingShares.find((item) => item.id === shareId);
     if (!share) return;
     try {
-      const { rootKeyBytes } = await performX3DHResponderAndDecrypt(privateBundle, share.packet);
+      const { rootKeyBytes, payload, usedOpkIndex, resolvedWithFallback } =
+        await performX3DHResponderAndDecrypt(
+          privateBundle,
+          share.packet,
+        );
+      if (usedOpkIndex !== null && usedOpkIndex !== undefined) {
+        consumeOneTimePreKey(usedOpkIndex);
+      }
       const plainBytes = await unwrapDataWithRootKey(rootKeyBytes, {
         cipher: share.encryptedGroupKey,
         iv: share.keyIv,
@@ -429,14 +632,113 @@ export default function App() {
       if (!groupId) {
         throw new Error('Convite recebido sem identificador de grupo.');
       }
-      storeGroupKey(groupId, plainBytes);
+      const senderName = share.sender?.username ?? share.sender ?? 'Remetente';
+      appendCryptoLog({
+        phase: 'Recepção X3DH',
+        title: `Envelope aceito de ${senderName}`,
+        description:
+          'Recalculamos o segredo compartilhado usando IK, SPK, EK e OPK e obtivemos a root key para abrir o envelope.',
+        reason: 'Precisamos validar a autenticidade do remetente antes de importar a chave do grupo.',
+        artifacts: [
+          { label: 'Root key (base64)', value: toB64(rootKeyBytes) },
+          {
+            label: 'OPK consumida',
+            value:
+              usedOpkIndex !== null && usedOpkIndex !== undefined
+                ? `${usedOpkIndex}${resolvedWithFallback ? ' (fallback aplicado)' : ''}`
+                : 'Nenhuma',
+          },
+          {
+            label: 'OPK indicada pelo remetente',
+            value:
+              share.packet?.opk_index !== null && share.packet?.opk_index !== undefined
+                ? share.packet?.opk_index
+                : 'Nenhuma',
+          },
+          { label: 'IK do remetente (payload)', value: payload?.IK_A_fromPayload ?? 'Indisponível' },
+          { label: 'AAD recebido', value: share.keyAad },
+        ],
+      });
+
+      const groupName = typeof share.group === 'object' ? share.group.name : null;
+      storeGroupKey(groupId, plainBytes, {
+        phase: 'Chaves de grupo',
+        title: 'Chave 3DES importada',
+        description: `Chave do grupo "${groupName ?? groupId}" decifrada e armazenada localmente.`,
+        reason: 'Sem persistir a chave não conseguimos decifrar mensagens passadas nem enviar novas mensagens.',
+        groupName: groupName ?? groupId,
+        artifacts: [
+          { label: 'Fingerprint esperada', value: share.group?.keyFingerprint ?? '—' },
+        ],
+      });
       await fetchJson(`${API_BASE}/key-exchange/pending/${share.id}/consume`, { method: 'POST' });
       setPendingShares((prev) => prev.filter((item) => item.id !== share.id));
-      setStatus('Chave do grupo salva com sucesso.');
+      setStatus(
+        resolvedWithFallback
+          ? 'Chave do grupo salva com sucesso. (OPK reconciliada via fallback local.)'
+          : 'Chave do grupo salva com sucesso.',
+      );
       refreshGroups();
     } catch (err) {
-      setStatus(`Não foi possível aceitar a chave: ${err.message}`);
+      const message = err?.message ?? 'Erro desconhecido';
+      setStatus(`Não foi possível aceitar a chave: ${message}`);
+      appendCryptoLog({
+        phase: 'Recepção X3DH',
+        title: 'Falha ao aceitar envelope',
+        description: `Erro ao importar a chave: ${message}`,
+        reason: 'Registrar a falha ajuda a identificar em qual etapa do X3DH a importação quebrou.',
+        artifacts: [
+          { label: 'Share', value: shareId },
+          { label: 'Grupo', value: share.group?.name ?? share.group ?? '—' },
+        ],
+      });
     }
+  }
+
+  function renderCryptoLogs() {
+    return (
+      <section className="column full">
+        <div className="card log-card">
+          <h3>Diário criptográfico</h3>
+          {cryptoLog.length === 0 ? (
+            <p>
+              Os detalhes de X3DH e 3DES aparecerão aqui assim que você gerar identidades,
+              compartilhar convites ou enviar mensagens.
+            </p>
+          ) : (
+            <ul className="log-list">
+              {cryptoLog.map((entry) => (
+                <li key={entry.id} className="log-entry">
+                  <div className="log-header">
+                    <div className="log-header-main">
+                      <span className="log-phase">{entry.phase}</span>
+                      <span className="log-title">{entry.title}</span>
+                    </div>
+                    <time>{new Date(entry.timestamp).toLocaleString()}</time>
+                  </div>
+                  {entry.description && <p className="log-description">{entry.description}</p>}
+                  {entry.reason && (
+                    <p className="log-reason">
+                      <strong>Por que:</strong> {entry.reason}
+                    </p>
+                  )}
+                  {entry.artifacts && entry.artifacts.length > 0 && (
+                    <dl className="log-artifacts">
+                      {entry.artifacts.map((artifact, index) => (
+                        <div key={`${entry.id}-artifact-${index}`} className="log-artifact">
+                          <dt>{artifact.label}</dt>
+                          <dd>{artifact.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    );
   }
 
   function renderUsersList() {
@@ -639,6 +941,7 @@ export default function App() {
           {renderGroups()}
         </section>
         <section className="column wide">{renderChat()}</section>
+        {renderCryptoLogs()}
       </main>
     </div>
   );
