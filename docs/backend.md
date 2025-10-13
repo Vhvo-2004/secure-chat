@@ -142,6 +142,13 @@ O NestJS usa o logger padrão. Os scripts de bootstrap imprimem mensagens amigá
 - Ao obter sucesso, inicia `nest start --watch` (`npm run start:dev:native`).
 - Propaga sinais de encerramento para finalizar eventuais instâncias temporárias do MongoDB.
 
+### `scripts/reset-db.js`
+
+- Reaproveita o `ensure-mongo` para garantir que haja uma instância de MongoDB acessível.
+- Resolve a URI de conexão com as mesmas variáveis utilizadas pelo `AppModule`.
+- Limpa todas as coleções com `deleteMany({})`, preservando índices e a estrutura do banco.
+- Pode ser executado via `npm run db:purge` (dentro da pasta `backend/`).
+
 ## Considerações finais
 
 O backend está pronto para receber melhorias como auditoria de eventos, limites de taxa, autenticação adicional ou suporte a múltiplos algoritmos de cifra. Mantenha a normalização de IDs e o encapsulamento da lógica de negócio nos services ao realizar novas alterações.

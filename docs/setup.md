@@ -113,6 +113,7 @@ Use esses comandos para validar se o código compila antes de abrir pull request
 
 - Parar containers: `docker compose down`
 - Remover volume: `docker compose down -v`
+- Limpar coleções do MongoDB sem alterar a estrutura: `npm run db:purge --prefix backend`
 
 ## Checklist pós-instalação
 
