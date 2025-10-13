@@ -27,15 +27,19 @@ export class MessagesService {
       ciphertext: dto.ciphertext,
       iv: dto.iv,
     });
-    return created.save();
+    const saved = await created.save();
+    return this.toPlain(saved);
   }
 
   async list(groupId: string): Promise<Message[]> {
-    const messages = await this.messageModel
+    const docs = await this.messageModel
       .find({ group: new Types.ObjectId(groupId) })
       .sort({ createdAt: 1 })
-      .lean({ virtuals: true })
       .exec();
-    return messages;
+    return docs.map((doc) => this.toPlain(doc));
+  }
+
+  private toPlain(message: MessageDocument): Message {
+    return message.toJSON() as unknown as Message;
   }
 }

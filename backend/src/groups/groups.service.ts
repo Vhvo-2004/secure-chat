@@ -18,26 +18,32 @@ export class GroupsService {
       members,
       keyFingerprint: dto.keyFingerprint ?? null,
     });
-    return created.save();
+    const saved = await created.save();
+    return this.toPlain(saved);
   }
 
   async findAll(): Promise<Group[]> {
-    return this.groupModel.find().sort({ createdAt: -1 }).lean({ virtuals: true }).exec();
+    const docs = await this.groupModel.find().sort({ createdAt: -1 }).exec();
+    return docs.map((doc) => this.toPlain(doc));
   }
 
   async findForUser(userId: string): Promise<Group[]> {
-    return this.groupModel
+    const docs = await this.groupModel
       .find({ members: new Types.ObjectId(userId) })
       .sort({ createdAt: -1 })
-      .lean({ virtuals: true })
       .exec();
+    return docs.map((doc) => this.toPlain(doc));
   }
 
   async findOne(id: string): Promise<Group> {
-    const group = await this.groupModel.findById(id).lean({ virtuals: true }).exec();
+    const group = await this.groupModel.findById(id).exec();
     if (!group) {
       throw new NotFoundException('Group not found');
     }
-    return group;
+    return this.toPlain(group);
+  }
+
+  private toPlain(group: GroupDocument): Group {
+    return group.toJSON() as unknown as Group;
   }
 }

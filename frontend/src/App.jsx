@@ -22,6 +22,18 @@ const STORAGE_KEYS = {
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
+function extractId(entity) {
+  if (!entity) return null;
+  if (typeof entity === 'string') return entity;
+  return entity.id ?? entity._id ?? null;
+}
+
+function normalizeEntity(entity) {
+  if (!entity || typeof entity === 'string') return entity;
+  const id = extractId(entity);
+  return id ? { ...entity, id } : entity;
+}
+
 function safeJsonParse(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -121,7 +133,14 @@ export default function App() {
   async function refreshUsers() {
     try {
       const data = await fetchJson(`${API_BASE}/users`);
-      setUsers(data);
+      const normalized = data
+        .map((user) => {
+          const id = extractId(user);
+          if (!id) return null;
+          return { ...user, id };
+        })
+        .filter(Boolean);
+      setUsers(normalized);
     } catch (err) {
       setStatus(`Falha ao carregar usuários: ${err.message}`);
     }
@@ -130,7 +149,23 @@ export default function App() {
   async function refreshGroups() {
     try {
       const data = await fetchJson(`${API_BASE}/groups?userId=${currentUser.id}`);
-      setGroups(data);
+      const normalized = data
+        .map((group) => {
+          const id = extractId(group);
+          if (!id) return null;
+          const members = Array.isArray(group.members)
+            ? group.members
+                .map((member) => (typeof member === 'string' ? member : extractId(member)))
+                .filter(Boolean)
+            : [];
+          return {
+            ...group,
+            id,
+            members,
+          };
+        })
+        .filter(Boolean);
+      setGroups(normalized);
     } catch (err) {
       setStatus(`Falha ao carregar grupos: ${err.message}`);
     }
@@ -139,7 +174,16 @@ export default function App() {
   async function refreshMessages(groupId) {
     try {
       const data = await fetchJson(`${API_BASE}/groups/${groupId}/messages`);
-      setMessages(data);
+      const normalized = data.map((message) => {
+        const id = extractId(message);
+        return {
+          ...message,
+          id: id ?? `${message.sender}-${message.createdAt ?? ''}-${message.ciphertext ?? ''}`,
+          sender: typeof message.sender === 'string' ? message.sender : extractId(message.sender),
+          group: typeof message.group === 'string' ? message.group : extractId(message.group),
+        };
+      });
+      setMessages(normalized);
     } catch (err) {
       setStatus(`Falha ao carregar mensagens: ${err.message}`);
     }
@@ -149,7 +193,34 @@ export default function App() {
     if (!currentUser) return;
     try {
       const data = await fetchJson(`${API_BASE}/key-exchange/pending/${currentUser.id}`);
-      setPendingShares(data);
+      const normalized = data
+        .map((share) => {
+          const id = extractId(share);
+          if (!id) return null;
+          const sender =
+            share.sender && typeof share.sender === 'object'
+              ? normalizeEntity(share.sender)
+              : share.sender;
+          const group =
+            share.group && typeof share.group === 'object'
+              ? {
+                  ...normalizeEntity(share.group),
+                  members: Array.isArray(share.group.members)
+                    ? share.group.members
+                        .map((member) => (typeof member === 'string' ? member : extractId(member)))
+                        .filter(Boolean)
+                    : [],
+                }
+              : share.group;
+          return {
+            ...share,
+            id,
+            sender,
+            group,
+          };
+        })
+        .filter(Boolean);
+      setPendingShares(normalized);
     } catch (err) {
       setStatus(`Falha ao carregar convites: ${err.message}`);
     }
@@ -178,7 +249,8 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      persistUser(user);
+      const normalizedUser = { ...user, id: extractId(user) ?? user.id };
+      persistUser(normalizedUser);
       persistBundle(serialized);
       setUsernameInput('');
       setStatus('Identidade registrada com sucesso.');
@@ -206,7 +278,9 @@ export default function App() {
     setStatus('Sessão limpa.');
   }
 
-  function toggleMemberSelection(userId) {
+  function toggleMemberSelection(rawUserId) {
+    const userId = rawUserId ?? null;
+    if (!userId) return;
     setGroupMemberSelections((prev) => {
       if (prev.includes(userId)) {
         return prev.filter((id) => id !== userId);
@@ -241,7 +315,9 @@ export default function App() {
     }
     setIsBusy(true);
     try {
-      const targetMembers = groupMemberSelections.filter((id) => id !== currentUser.id);
+      const targetMembers = groupMemberSelections
+        .filter(Boolean)
+        .filter((id) => id !== currentUser.id);
       const keyBytes = random3DesKey();
       const fingerprint = fingerprintKey(keyBytes);
       const groupPayload = {
@@ -254,14 +330,26 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify(groupPayload),
       });
-      storeGroupKey(group.id, keyBytes);
-      setGroups((prev) => [group, ...prev.filter((g) => g.id !== group.id)]);
-      setSelectedGroupId(group.id);
+      const normalizedGroup = normalizeEntity(group);
+      const groupId = extractId(normalizedGroup);
+      if (!groupId) {
+        throw new Error('Resposta de criação do grupo inválida (id ausente).');
+      }
+      storeGroupKey(groupId, keyBytes);
+      setGroups((prev) => [
+        { ...normalizedGroup, id: groupId },
+        ...prev.filter((g) => g.id !== groupId),
+      ]);
+      setSelectedGroupId(groupId);
       setGroupNameInput('');
       setGroupMemberSelections([]);
       setStatus('Grupo criado. Distribuindo a chave...');
 
       for (const memberId of targetMembers) {
+        if (!memberId) {
+          console.warn('Ignorando membro sem id ao compartilhar chave');
+          continue;
+        }
         try {
           const bundle = await fetchJson(`${API_BASE}/key-exchange/request`, {
             method: 'POST',
@@ -272,7 +360,7 @@ export default function App() {
           await fetchJson(`${API_BASE}/key-exchange/share`, {
             method: 'POST',
             body: JSON.stringify({
-              groupId: group.id,
+              groupId,
               senderId: currentUser.id,
               receiverId: memberId,
               packet,
@@ -337,7 +425,11 @@ export default function App() {
         iv: share.keyIv,
         aad: share.keyAad,
       });
-      storeGroupKey(typeof share.group === 'object' ? share.group.id ?? share.group._id : share.group, plainBytes);
+      const groupId = typeof share.group === 'object' ? extractId(share.group) : share.group ?? null;
+      if (!groupId) {
+        throw new Error('Convite recebido sem identificador de grupo.');
+      }
+      storeGroupKey(groupId, plainBytes);
       await fetchJson(`${API_BASE}/key-exchange/pending/${share.id}/consume`, { method: 'POST' });
       setPendingShares((prev) => prev.filter((item) => item.id !== share.id));
       setStatus('Chave do grupo salva com sucesso.');

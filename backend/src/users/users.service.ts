@@ -20,7 +20,8 @@ export class UsersService {
       existing.signedPreKey = rest.signedPreKey;
       existing.signedPreKeySignature = rest.signedPreKeySignature;
       existing.oneTimePreKeys = normalizedPreKeys;
-      return existing.save();
+      const updated = await existing.save();
+      return this.toPlain(updated);
     }
 
     const created = new this.userModel({
@@ -28,23 +29,26 @@ export class UsersService {
       ...rest,
       oneTimePreKeys: normalizedPreKeys,
     });
-    return created.save();
+    const saved = await created.save();
+    return this.toPlain(saved);
   }
 
   async findAll(): Promise<User[]> {
-    return this.userModel.find().sort({ username: 1 }).lean({ virtuals: true }).exec();
+    const docs = await this.userModel.find().sort({ username: 1 }).exec();
+    return docs.map((doc) => this.toPlain(doc));
   }
 
   async findOne(id: string): Promise<User> {
-    const doc = await this.userModel.findById(id).lean({ virtuals: true }).exec();
+    const doc = await this.userModel.findById(id).exec();
     if (!doc) {
       throw new NotFoundException('User not found');
     }
-    return doc;
+    return this.toPlain(doc);
   }
 
   async findByUsername(username: string): Promise<User | null> {
-    return this.userModel.findOne({ username }).lean({ virtuals: true }).exec();
+    const doc = await this.userModel.findOne({ username }).exec();
+    return doc ? this.toPlain(doc) : null;
   }
 
   async addPreKeys(id: string, payload: AddPreKeysDto): Promise<User> {
@@ -56,7 +60,8 @@ export class UsersService {
     const existingIndexes = new Set(user.oneTimePreKeys.map((k) => k.index));
     const filtered = incoming.filter((item) => !existingIndexes.has(item.index));
     user.oneTimePreKeys.push(...filtered);
-    return user.save();
+    const saved = await user.save();
+    return this.toPlain(saved);
   }
 
   async reservePreKey(userId: string, consumerId?: string): Promise<{ user: User; preKey: OneTimePreKey | null }> {
@@ -85,5 +90,9 @@ export class UsersService {
       usedBy: null,
       usedAt: null,
     } as OneTimePreKey;
+  }
+
+  private toPlain(user: UserDocument): User {
+    return user.toJSON() as unknown as User;
   }
 }
