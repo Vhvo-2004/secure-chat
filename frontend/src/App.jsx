@@ -20,7 +20,7 @@ const STORAGE_KEYS = {
   groupKeys: 'secure-chat/group-keys',
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5173/api';
 
 function extractId(entity) {
   if (!entity) return null;

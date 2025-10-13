@@ -53,6 +53,19 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  frontend:
+      build: ./frontend
+      container_name: chat-frontend
+      networks:
+        - chat
+      ports:
+        - "127.0.0.1:5173:80"
+      environment:
+        - VITE_SERVER_HOST=0.0.0.0
+        - BACKEND_SERVER_PORT={BACKEND_CONTAINER_PORT:-3000}
+      depends_on: 
+        - backend
+      restart: unless-stopped
 
 networks:
   chat:
