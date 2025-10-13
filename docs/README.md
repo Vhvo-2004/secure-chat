@@ -7,6 +7,7 @@ Bem-vindo ao hub de documentação detalhada do projeto **Secure Chat – X3DH +
 | Documento | Conteúdo principal |
 | --- | --- |
 | [`architecture.md`](architecture.md) | Visão de arquitetura, componentes, sequências de autenticação e armazenamento de dados. |
+| [`crypto-flows.md`](crypto-flows.md) | Passo a passo do X3DH, compartilhamento de chaves e cifragem 3DES no projeto. |
 | [`backend.md`](backend.md) | Estrutura do backend NestJS, esquemas Mongoose, endpoints e eventos importantes. |
 | [`frontend.md`](frontend.md) | Organização do cliente React, estado local, UX e manipulação de chaves no navegador. |
 | [`security.md`](security.md) | Detalhes criptográficos sobre o uso de X3DH e 3DES, além de recomendações de segurança. |

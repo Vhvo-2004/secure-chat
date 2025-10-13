@@ -1,6 +1,6 @@
 # Segurança e criptografia
 
-Esta seção descreve os mecanismos de segurança utilizados no Secure Chat, destacando como o protocolo X3DH foi adaptado, como a chave de grupo é manipulada e quais são as melhores práticas para manter a confidencialidade.
+Esta seção descreve os mecanismos de segurança utilizados no Secure Chat, destacando como o protocolo X3DH foi adaptado, como a chave de grupo é manipulada e quais são as melhores práticas para manter a confidencialidade. Para um roteiro passo a passo de cada troca de chaves e da cifragem de mensagens, consulte também [`crypto-flows.md`](crypto-flows.md).
 
 ## Objetivos de segurança
 
@@ -27,9 +27,9 @@ O X3DH é utilizado para estabelecer um segredo compartilhado entre o emissor (A
    - DH4 = DH(IK_A, OPK_B) — opcional, depende da disponibilidade da pré-chave
 4. **Derivação**
    - Concatenação das saídas => `IKM`
-   - Aplicação de HKDF-SHA256 com `salt` aleatório para extrair `rootKey` e `encKey`
+   - Aplicação de HKDF-SHA256 com `salt` de 16 bytes zerados para extrair `rootKey` e `encKey`
 5. **Encapsulamento**
-   - A chave 3DES, IV e AAD são cifrados usando `encKey` em modo AES-256-GCM.
+   - A chave 3DES é cifrada usando `encKey` em modo AES-256-GCM (produzindo `ciphertext`, `iv` e `aad`).
    - O pacote resultante é enviado ao backend.
 
 O receptor repete os DHs com suas chaves privadas para decapsular os dados. Após o uso, a `oneTimePreKey` é marcada como consumida, evitando reutilização.
