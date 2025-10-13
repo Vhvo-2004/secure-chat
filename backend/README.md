@@ -96,3 +96,5 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+<!-- docker compose down && docker volume rm secure-chat_mongodb && docker compose build mongodb && docker compose create mongodb && docker compose start mongodb && docker logs -f chat-database -->

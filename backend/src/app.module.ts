@@ -28,18 +28,20 @@ import { MessagesModule } from './messages/messages.module';
         const port = get('DATABASE_PORT', '27017');
         const dbName = get('DATABASE_NAME', 'chat');
         const authSource = get('DATABASE_AUTH_SOURCE', dbName);
-        const user = configService.get<string>('DATABASE_USER');
-        const password = configService.get<string>('DATABASE_PASSWORD');
+        const user = get('DATABASE_USER', '');
+        const password = get('DATABASE_PASSWORD', '');
+        const replica = get('DATABASE_REPLICA_NAME', '');
 
         if (user && password) {
           const encodedUser = encodeURIComponent(user);
           const encodedPass = encodeURIComponent(password);
           return {
-            uri: `mongodb://${encodedUser}:${encodedPass}@${host}:${port}/${dbName}?authSource=${authSource}`
+            uri: `mongodb://${encodedUser}:${encodedPass}@${host}:${port}/${dbName}?replicaSet=${replica}&authSource=${dbName}`
           };
         }
 
-        return { uri: `mongodb://${host}:${port}/${dbName}` };
+        return { uri: `mongodb://${host}:${port}/${dbName}`};
+
       },
       inject: [ConfigService]
     }),

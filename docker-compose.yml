@@ -14,6 +14,7 @@ services:
       - DATABASE_NAME=${MONGO_INITDB_DATABASE:-chat}
       - DATABASE_USER=${MONGO_BACKEND_USERNAME:-user}
       - DATABASE_PASSWORD=${MONGO_BACKEND_PASSWORD:-password}
+      - DATABASE_REPLICA_NAME=${MONGO_REPLICA_SET_NAME:-rs0}
     depends_on:
       - mongodb
     restart: unless-stopped
@@ -27,7 +28,9 @@ services:
       - chat
     volumes:
       - mongodb:/data/db
-      - ./mongo-init.sh:/docker-entrypoint-initdb.d/init-user.sh:ro
+      - ./mongo.key:/etc/mongo/mongo.key # openssl rand -base64 756 > mongo.key && chmod 400 mongo.key
+      - ./mongo-entrypoint.sh:/usr/local/bin/entrypoint.sh
+      # - ./mongo-init.sh:/docker-entrypoint-initdb.d/init-user.sh:ro
     environment:
       MONGO_DATABASE_PORT: ${MONGO_DATABASE_PORT:-27017}
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
@@ -35,7 +38,19 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-chat}
       MONGO_BACKEND_USERNAME: ${MONGO_BACKEND_USERNAME:-user}
       MONGO_BACKEND_PASSWORD: ${MONGO_BACKEND_PASSWORD:-password}
-    # entrypoint: ["/init.sh"]
+      MONGO_REPLICA_SET_NAME: ${MONGO_REPLICA_SET_NAME:-rs0}
+    command: /usr/local/bin/entrypoint.sh
+    healthcheck:
+      test: |
+        mongosh --host mongodb \
+        --authenticationDatabase admin \
+        -u ${MONGO_INITDB_ROOT_USERNAME} \
+        -p ${MONGO_INITDB_ROOT_PASSWORD} \
+        --eval 'quit(rs.status().ok ? 0 : 1)'
+      interval: 5s
+      timeout: 30s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 
