@@ -2,6 +2,8 @@
 
 Aplicação de chat segura que combina **Triple Diffie-Hellman (X3DH)** para distribuição de chaves com criptografia simétrica **3DES** por grupo. O projeto contempla backend em NestJS/MongoDB e frontend em React que realiza todo o fluxo de geração de identidade, convite aos grupos e cifragem/decifragem das mensagens no cliente.
 
+> 📚 **Documentação detalhada**: consulte a pasta [`docs/`](docs/README.md) para guias aprofundados de arquitetura, segurança, backend, frontend e troubleshooting desta versão.
+
 ## Visão geral da arquitetura
 
 1. **Identidade de usuário** – cada participante gera um bundle local (`IdentityKey`, `SignedPreKey`, `One-Time Pre-Keys`). Somente as chaves públicas são enviadas ao backend.
