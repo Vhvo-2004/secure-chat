@@ -1,152 +1,182 @@
-# Secure Chat – X3DH + 3DES
+# Chat E2E (Protótipo Educacional)
 
-Aplicação de chat segura que combina **Triple Diffie-Hellman (X3DH)** para distribuição de chaves com criptografia simétrica **3DES** por grupo. O projeto contempla backend em NestJS/MongoDB e frontend em React que realiza todo o fluxo de geração de identidade, convite aos grupos e cifragem/decifragem das mensagens no cliente.
+Protótipo funcional de chat end-to-end usando X3DH para estabelecimento de chaves e 3DES-CBC + HMAC-SHA256 para criptografia de mensagens.
 
-> 📚 **Documentação detalhada**: consulte a pasta [`docs/`](docs/README.md) para guias aprofundados de arquitetura, segurança, backend, frontend e troubleshooting desta versão.
+## ✅ Status do Projeto
 
-## Visão geral da arquitetura
+**FUNCIONAL E OPERACIONAL (REST-ONLY)**
 
-1. **Identidade de usuário** – cada participante gera um bundle local (`IdentityKey`, `SignedPreKey`, `One-Time Pre-Keys`). Somente as chaves públicas são enviadas ao backend.
-2. **Distribuição de chaves de grupo** – o criador do grupo gera uma chave 3DES aleatória (24 bytes) e utiliza X3DH para criar sessões seguras com cada convidado. A chave 3DES é encapsulada com o root key derivado e armazenada no backend para que o convidado recupere posteriormente.
-3. **Mensagens** – após aceitar o convite, o membro armazena a chave 3DES localmente e passa a cifrar/decifrar mensagens em modo **DES-EDE3-CBC** (implementação pura em JavaScript). O backend nunca acessa as chaves simétricas; apenas persiste envelopes e ciphertexts.
+### 🔧 Correções Críticas Implementadas (v1.4)
 
-## Principais endpoints
+- ✅ **X3DH Protocol Compliance**: Chaves ephemeral únicas por sessão
+- ✅ **One-Time Key Matching**: Fallback automático para IDs (`Bob:otpk-0` → `otpk-0`)
+- ✅ **Polling Timestamp Sync**: Always update com serverTimestamp
+- ✅ **MAC Verification**: Eliminados erros de MAC mismatch
+- ✅ **Error Recovery**: Tratamento robusto de casos edge
 
-| Método | Endpoint | Descrição |
-| --- | --- | --- |
-| `POST` | `/users` | Registra/atualiza identidade pública e One-Time Pre-Keys. |
-| `GET` | `/users` | Lista usuários registrados. |
-| `POST` | `/groups` | Cria um grupo e salva o fingerprint da chave 3DES distribuída. |
-| `GET` | `/groups?userId=...` | Lista grupos dos quais o usuário participa. |
-| `POST` | `/key-exchange/request` | Reserva um One-Time Pre-Key do convidado e devolve o bundle público. |
-| `POST` | `/key-exchange/share` | Persiste o pacote X3DH + chave 3DES cifrada para um destinatário. |
-| `GET` | `/key-exchange/pending/:userId` | Convites pendentes para o usuário. |
-| `POST` | `/key-exchange/pending/:shareId/consume` | Marca convite como consumido após importar a chave. |
-| `POST` | `/groups/:groupId/messages` | Persiste mensagem cifrada (ciphertext + IV). |
-| `GET` | `/groups/:groupId/messages` | Recupera mensagens cifradas de um grupo. |
+### 🎯 Funcionalidades Principais
 
-## Como executar
+- ✅ **X3DH Protocol**: Implementação completa com Ed25519/X25519
+- ✅ **Registro de Usuários**: Geração automática de key bundles
+- ✅ **Handshake Criptográfico**: Estabelecimento seguro de chaves
+- ✅ **Criptografia E2E**: 3DES-CBC + HMAC-SHA256
+- ✅ **Chat Assíncrono**: REST API + Polling adaptativo (3s ativo, 30s background)
+- ✅ **Message Queue**: Sistema de delivery assíncrono com status tracking
+- ✅ **Logout Inteligente**: Preserva histórico por padrão, opção de limpeza completa
+- ✅ **Interface Simplificada**: Foco na comunicação essencial
+- ✅ **Banco PostgreSQL**: Schema completo com sessões, conversas, chaves
+- ✅ **Frontend React**: Interface limpa com polling automático
+- ✅ **Testes**: Cobertura total para backend, frontend e crypto
 
-### 1. Via Docker Compose
+## 🚀 Como Usar
 
+### Pré-requisitos
+- Node.js 18+
+- PostgreSQL 14+
+- Docker (opcional)
+
+### Instalação
+
+1. **Clone e instale dependências:**
 ```bash
-docker compose up --build
-```
-
-Serviços expostos:
-- Backend NestJS: `http://localhost:3000`
-- MongoDB: `localhost:27017`
-
-Para executar o frontend, abra um novo terminal:
-
-```bash
-cd frontend
-npm install  # apenas para instalar dependências locais
-VITE_API_URL=http://localhost:3000 npm run dev -- --host 0.0.0.0 --port 5173
-```
-
-Acesse `http://localhost:5173`.
-
-> **Dica:** o frontend assume por padrão `http://localhost:3000` como base da API. Ajuste a variável `VITE_API_URL` caso exponha o backend em outra porta/host.
-
-> **Nota:** caso não possua acesso externo ao npm, as dependências já estão vendorizadas no repositório (`node_modules`).
-
-### 2. Execução manual (sem Docker)
-
-1. **Banco de dados** – o comando `npm run start:dev` do backend agora verifica se há MongoDB disponível em `localhost:27017`.
-   - Caso não encontre uma instância ativa, ele tentará automaticamente executar `docker compose up -d mongodb` na raiz do projeto (requer Docker instalado e permissão para acessar `/var/run/docker.sock`).
-   - Se o Docker não estiver disponível, se ocorrer erro de permissão ou o container não iniciar a tempo, o script pode criar uma instância temporária usando [`mongodb-memory-server`](https://github.com/nodkz/mongodb-memory-server) (execute `npm install --save-dev mongodb-memory-server` dentro da pasta `backend` para habilitar o fallback). A string de conexão será exportada via `DATABASE_URI` e a instância é finalizada automaticamente quando o processo termina.
-   - Se preferir iniciar o banco manualmente ou estiver usando outro host/porta, defina `AUTO_START_MONGO=false` antes de rodar o script. Nesse cenário, garanta que as variáveis `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` (ou diretamente `DATABASE_URI`) estejam configuradas.
-   - Recebeu uma mensagem de que nem o Docker nem o fallback puderam ser utilizados? Suba o MongoDB manualmente (por exemplo, `docker compose up mongodb` em um terminal com privilégios) ou instale o fallback e execute novamente.
-
-2. **Backend**
-
-```bash
-cd backend
+git clone <repo-url>
+cd Redes_II
 npm install
-npm run start:dev
 ```
 
-   - Para iniciar o NestJS sem a verificação automática, utilize `npm run start:dev:native`.
-   - Para builds fora do modo watch, rode `npm run build` diretamente dentro da pasta `backend`. O comando `npm run build --prefix backend` só funciona a partir da raiz do repositório.
-
-3. **Frontend**
-
+2. **Configure o banco de dados:**
 ```bash
-cd frontend
-npm install
+# Com Docker
+docker-compose up -d
+
+# Ou PostgreSQL local
+createdb chat_e2e
+```
+
+3. **Execute o projeto:**
+```bash
 npm run dev
 ```
 
-## Fluxo no frontend
+4. **Acesse a aplicação:**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:3001
 
-1. Gere e registre um usuário – o bundle privado é salvo apenas no navegador (localStorage).
-2. Crie um grupo selecionando participantes. O frontend gera a chave 3DES, calcula o fingerprint e envia convites X3DH automaticamente.
-3. Convites pendentes aparecem na coluna da esquerda. Ao importar, a chave simétrica é decapsulada e armazenada localmente.
-4. As mensagens digitadas são cifradas com 3DES no cliente antes de serem enviadas.
+### Testando o Chat E2E
 
-## Guia passo a passo: criando e usando um chat seguro
+1. **Registre dois usuários** (ex: Alice e Bob)
+   - ⚠️ **Importante**: Ambos usuários devem fazer registro E login pelo menos uma vez
+2. **Alice inicia conversa** com Bob (estabelece X3DH)
+   - ✅ Sistema agora valida se Bob existe antes de tentar conectar
+3. **Troque mensagens** - todas são criptografadas E2E
+4. **Teste o logout**: Use "Logout Normal" para preservar histórico
+5. **Verifique os logs** do console para acompanhar o processo criptográfico
 
-1. **Registrar identidade**
-   - Informe um nome de usuário e clique em **Gerar identidade & registrar**.
-   - O navegador gera par de chaves X25519 para cifragem, assina uma Signed Pre-Key e cria 10 One-Time Pre-Keys.
-   - Apenas as chaves públicas são enviadas ao backend; o restante permanece em `localStorage`.
+### Funcionalidades da Interface
 
-2. **Convidar participantes e criar o grupo**
-   - Após registrar-se, utilize o painel “Usuários disponíveis” para selecionar quem participará.
-   - Clique em **Criar grupo**, defina um nome e confirme. Automaticamente:
-     - Uma chave 3DES aleatória de 24 bytes é gerada no cliente.
-     - Para cada convidado, o frontend solicita ao backend o bundle público (`/key-exchange/request`).
-     - O X3DH é executado localmente e o segredo resultante encapsula a chave 3DES, enviada via `/key-exchange/share`.
+- **Validação de Usuários**: Verifica se destinatário existe antes de iniciar conversa
+- **Mensagens de Erro Claras**: Feedback específico para diferentes problemas
+- **Logout Normal**: Mantém mensagens e chaves de conversa (padrão)
+- **Logout Completo**: Remove todos os dados (com confirmação)
+- **Polling adaptativo**: Atualização automática de mensagens (REST-only)
+- **Logs criptográficos**: Todas as etapas e chaves exibidas apenas no frontend
+- **Interface limpa**: Sem alertas ou notificações desnecessárias
 
-3. **Aceitar convites**
-   - Usuários convidados verão notificações na coluna “Convites pendentes”.
-   - Ao clicar em **Importar chave**, o aplicativo:
-     - Recupera o pacote X3DH, decapsula a chave 3DES e grava o fingerprint localmente.
-     - Marca o convite como consumido em `/key-exchange/pending/:shareId/consume`.
-     - O cartão do convite exibe o nome do grupo e o fingerprint esperado; após a importação o grupo correspondente deixa o
-       estado “Chave aguardando” e passa a mostrar o fingerprint salvo, confirmando que a chave foi sincronizada.
+## 🏗️ Arquitetura
 
-4. **Enviar e receber mensagens**
-   - Com a chave 3DES disponível, basta selecionar o grupo e digitar a mensagem.
-   - O texto é cifrado com DES-EDE3-CBC (PKCS#7) antes de ser enviado para `/groups/:groupId/messages`.
-   - Mensagens recebidas são decifradas automaticamente usando a chave local.
-
-5. **Rotina de segurança recomendada**
-   - Reimporte sua identidade em um novo navegador copiando o conteúdo salvo em `localStorage`.
-   - Caso suspeite de comprometimento, crie um novo grupo para os mesmos participantes; uma nova chave 3DES será distribuída.
-
-## Solução de problemas
-
-- `CannotDetermineTypeError: Cannot determine a type for the "Group.keyFingerprint" field` – ocorre quando o Mongoose não consegue inferir o tipo de uma propriedade opcional. O schema já foi atualizado com `@Prop({ type: String, default: null })`, portanto basta reinstalar e reconstruir o backend (`cd backend && npm install && npm run start:dev`).
-- `MongoParseError: Invalid connection string "mongodb://:@:/?authSource="` – indica que as variáveis de ambiente de banco foram deixadas vazias. Remova-as para usar a conexão local padrão ou configure `DATABASE_URI` com a string correta.
-- `MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017` – significa que não há MongoDB escutando no host/porta configurados. Ao executar `npm run start:dev`, o projeto tenta subir `docker compose up -d mongodb` automaticamente; se isso falhar e você tiver instalado `mongodb-memory-server` (`npm install --save-dev mongodb-memory-server`), um MongoDB em memória será iniciado e usado através de `DATABASE_URI`. Caso contrário, suba o banco manualmente ou execute `AUTO_START_MONGO=false npm run start:dev:native` apontando para uma instância acessível.
-- `mongodb-memory-server is not installed, so an in-memory MongoDB fallback cannot be started.` – indica que a dependência opcional não está instalada. Entre em `backend/` e rode `npm install --save-dev mongodb-memory-server`, ou então suba o MongoDB manualmente (via Docker ou instalação local) e execute `AUTO_START_MONGO=false npm run start:dev:native`.
-
-## Implementação 3DES
-
-Foi implementada uma versão reduzida do algoritmo 3DES (DES-EDE3-CBC com PKCS#7) em `frontend/src/crypto/triple-des.js`. A implementação segue FIPS 46-3 e utiliza apenas recursos nativos do browser.
-
-## Estrutura do repositório
-
+### Monorepo Structure
 ```
-backend/   # NestJS + Mongoose (API e persistência)
-frontend/  # React + Vite (interface, X3DH, 3DES client-side)
-shared/    # utilidades compartilhadas (reservado)
+├── backend/           # API Fastify + PostgreSQL (REST-only)
+├── frontend/          # Interface React + Polling adaptativo
+├── packages/crypto/   # Primitivas criptográficas compartilhadas
+└── docs/              # Documentação técnica
 ```
 
-## Testes rápidos
+### Fluxo de Criptografia
 
-- `npm run lint` (backend/frontend) – validações estáticas
-- `npm run test` (backend) – testes unitários (quando implementados)
-- `npm run build` (frontend) – build Vite de produção
+1. **Registro**: Usuário gera material criptográfico (IK, SPK, OTKs)
+2. **X3DH Handshake**: Estabelecimento de chaves compartilhadas
+3. **Envio/Recepção de Mensagens**: Criptografia 3DES-CBC + HMAC-SHA256
+4. **Logs Educacionais**: Todas as etapas e chaves exibidas no painel do frontend
+5. **Polling REST**: Mensagens sincronizadas via REST, sem WebSocket
 
-## Segurança
+## 🧪 Primitivas Criptográficas
 
-- O backend não recebe chaves privadas nem texto plano.
-- Cada grupo possui fingerprint da chave 3DES para validação cruzada entre participantes.
-- One-Time Pre-Keys são marcadas como consumidas ao serem entregues para garantir sigilo futuro.
+- **Curvas Elípticas**: Ed25519 (assinaturas) + X25519 (ECDH)
+- **Derivação de Chaves**: HKDF com SHA-256
+- **Criptografia Simétrica**: 3DES-CBC (educacional)
+- **Autenticação**: HMAC-SHA256
+- **Protocolo**: X3DH (Signal Protocol Foundation)
 
-## Licença
+## 📊 Scripts Disponíveis
 
-Projeto para fins acadêmicos/demonstração. Ajuste conforme sua necessidade.
+```bash
+# Instalar dependências
+npm install
+
+# Desenvolvimento (backend + frontend)
+npm run dev
+
+# Apenas backend
+npm run dev:backend
+
+# Apenas frontend  
+npm run dev:frontend
+
+# Testes
+npm test
+
+# Build completo
+npm run build
+
+# Verificação de tipos
+npm run typecheck
+```
+
+## ⚠️ Avisos de Segurança
+
+**APENAS PARA FINS EDUCACIONAIS**
+
+- 3DES é considerado legado (use AES-GCM em produção)
+- Sem forward secrecy (implementar Double Ratchet)
+- Sem auditoria de segurança externa
+- Pool de OTK pode esgotar sem monitoramento
+
+Veja [SECURITY.md](./SECURITY.md) para detalhes completos.
+
+## 🔄 Próximos Passos
+
+1. **Migração para AES-GCM**: Substituir 3DES
+2. **Double Ratchet**: Implementar forward secrecy
+3. **Key Verification**: Sistema de fingerprints
+4. **Performance**: Otimizações de memória e rede
+
+## 🆕 Melhorias Recentes
+
+### v1.3 - Estabilidade e UX (Outubro 2025)
+- ✅ **Correções Críticas**: Resolvidos erros 404/500 ao iniciar conversas
+- ✅ **Validação Prévia**: Sistema agora verifica se usuário destinatário existe
+- ✅ **Mensagens Claras**: Feedback específico para cada tipo de erro
+- ✅ **Backend Robusto**: Try-catch completo com tratamento de edge cases
+- ✅ **Limpeza de Código**: Removidos arquivos duplicados e endpoints legados
+- ✅ **GitIgnore Inteligente**: Controle adequado de versionamento
+
+### v1.2 - Interface Simplificada (Dezembro 2024)
+- ✅ **Logout Inteligente**: Preserva mensagens por padrão, opção de limpeza total
+- ✅ **UI Minimalista**: Removido sistema de alertas e notificações desnecessárias
+- ✅ **UX Melhorada**: Confirmações para ações destrutivas e transparência
+
+### v1.1 - Chat Funcional Completo
+- ✅ **Chat assíncrono**: REST API + Polling adaptativo
+- ✅ **Criptografia robusta**: X3DH + 3DES-CBC + HMAC-SHA256
+- ✅ **Persistência**: Mensagens e chaves mantidas entre sessões
+
+## 📚 Recursos de Aprendizagem
+
+- [X3DH Specification](https://signal.org/docs/specifications/x3dh/)
+- [Signal Protocol Overview](https://signal.org/docs/)
+- [Noble Cryptography Library](https://github.com/paulmillr/noble-secp256k1)
+
+---
+
+**Projeto desenvolvido para fins educacionais em Redes II - Demonstração de protocolos criptográficos modernos**

@@ -1,14 +1,12 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "types": ["node"],
-    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
     "paths": {
       "@chat-e2e/crypto": ["../packages/crypto/src/index.ts"],
       "@chat-e2e/crypto/*": ["../packages/crypto/src/*"]
     }
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["dist", "node_modules"]
 }

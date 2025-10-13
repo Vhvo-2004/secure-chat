@@ -1,12 +1,38 @@
 {
-  "name": "secure-chat",
-  "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/crypto"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npm run build -w packages/crypto && npm run build -w backend && npm run build -w frontend",
+    "typecheck": "tsc -p packages/crypto/tsconfig.json --noEmit && tsc -p backend/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit",
+    "dev": "npm-run-all -p dev:backend dev:frontend",
+    "dev:raw": "npm-run-all -p dev:backend dev:frontend",
+    "dev:backend:direct": "npm run dev -w backend",
+    "clean": "rimraf backend/dist frontend/dist packages/crypto/dist",
+    "reset": "rimraf node_modules package-lock.json && npm install",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "test": "vitest run",
+    "lint": "eslint . --ext .ts,.tsx"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/testing-library__react": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-security": "^2.0.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.1"
+  }
 }

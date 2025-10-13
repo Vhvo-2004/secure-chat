@@ -1,0 +1,2 @@
+DROP DATABASE chat_e2e;
+CREATE DATABASE chat_e2e;

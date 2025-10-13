@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Teste de Registro</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #2d2d30;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007acc;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            background: #252526;
+            border-radius: 3px;
+        }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #dcdcaa; }
+        .info { color: #9cdcfe; }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #3c3c3c;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 3px;
+        }
+        button {
+            background: #0e639c;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        .status {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+        .status.success { background: #0e7a0e; }
+        .status.error { background: #a1260d; }
+        .status.warning { background: #8b6914; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug - Teste de Registro com Bundle Automático</h1>
+        
+        <div class="section">
+            <h2>📝 Registro de Usuário</h2>
+            <input type="text" id="username" placeholder="Nome de usuário" value="TestUser">
+            <input type="password" id="password" placeholder="Senha" value="senha123">
+            <button onclick="testFullRegistration()">🚀 Testar Registro Completo</button>
+            <button onclick="clearLogs()">🧹 Limpar Logs</button>
+        </div>
+
+        <div class="section">
+            <h2>📊 Status do Processo</h2>
+            <div id="status-container">
+                <div class="status" id="api-status">🔄 API: Verificando...</div>
+                <div class="status" id="register-status">⏳ Registro: Aguardando</div>
+                <div class="status" id="login-status">⏳ Login: Aguardando</div>
+                <div class="status" id="bundle-status">⏳ Bundle: Aguardando</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Logs Detalhados</h2>
+            <div id="logs"></div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Testes Individuais</h2>
+            <button onclick="testApiDetection()">🌐 Testar Detecção de API</button>
+            <button onclick="testBundleGeneration()">🔑 Testar Geração de Bundle</button>
+            <button onclick="testBundlePublication()">📤 Testar Publicação (necessita token)</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApiConfig, API_CONFIG } from '/src/config/api.js';
+        import { createKeyMaterial, exportBundle } from '@chat-e2e/crypto';
+
+        window.API_CONFIG = API_CONFIG;
+        window.createKeyMaterial = createKeyMaterial;
+        window.exportBundle = exportBundle;
+        window.initializeApiConfig = initializeApiConfig;
+
+        // Inicializar API ao carregar página
+        window.onload = async () => {
+            await testApiDetection();
+        };
+
+        window.log = function(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        };
+
+        window.updateStatus = function(id, status, type) {
+            const element = document.getElementById(id);
+            element.textContent = status;
+            element.className = `status ${type}`;
+        };
+
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = '';
+        };
+
+        window.testApiDetection = async function() {
+            log('🔍 Iniciando teste de detecção de API...', 'info');
+            updateStatus('api-status', '🔄 API: Verificando...', 'warning');
+            
+            try {
+                await initializeApiConfig();
+                log(`✅ API detectada: ${API_CONFIG.BASE_URL}`, 'success');
+                updateStatus('api-status', `✅ API: ${API_CONFIG.BASE_URL}`, 'success');
+                
+                log('📋 Endpoints configurados:', 'info');
+                log(`  Register: ${API_CONFIG.ENDPOINTS.REGISTER}`, 'info');
+                log(`  Login: ${API_CONFIG.ENDPOINTS.LOGIN}`, 'info');
+                log(`  Keys Publish: ${API_CONFIG.ENDPOINTS.KEYS_PUBLISH}`, 'info');
+                log(`  WebSocket: ${API_CONFIG.ENDPOINTS.WEBSOCKET}`, 'info');
+                
+            } catch (error) {
+                log(`❌ Erro na detecção de API: ${error}`, 'error');
+                updateStatus('api-status', '❌ API: Erro', 'error');
+            }
+        };
+
+        window.testBundleGeneration = function() {
+            log('🔑 Testando geração de bundle...', 'info');
+            
+            try {
+                const material = createKeyMaterial(8);
+                log('✅ Material criptográfico criado', 'success');
+                
+                const bundle = exportBundle(material);
+                log('✅ Bundle exportado', 'success');
+                log(`  Identity Key: ${bundle.identityKey ? 'OK' : 'ERRO'}`, 'info');
+                log(`  Signed PreKey: ${bundle.signedPreKey ? 'OK' : 'ERRO'}`, 'info');
+                log(`  OneTime Keys: ${bundle.oneTimePreKeys.length}`, 'info');
+                
+            } catch (error) {
+                log(`❌ Erro na geração do bundle: ${error}`, 'error');
+            }
+        };
+
+        window.u8ToB64 = function(u8) {
+            let s = '';
+            u8.forEach((b) => { s += String.fromCharCode(b); });
+            return btoa(s);
+        };
+
+        window.testBundlePublication = async function() {
+            const token = prompt('Digite o token de autenticação:');
+            if (!token) {
+                log('❌ Token necessário para teste de publicação', 'error');
+                return;
+            }
+
+            log('📤 Testando publicação de bundle...', 'info');
+            
+            try {
+                const material = createKeyMaterial(8);
+                const bundle = exportBundle(material);
+                
+                const payload = {
+                    bundle: {
+                        identityKey: u8ToB64(bundle.identityKey),
+                        signingPublicKey: bundle.signingPublicKey ? u8ToB64(bundle.signingPublicKey) : undefined,
+                        signedPreKey: u8ToB64(bundle.signedPreKey),
+                        signedPreKeySignature: u8ToB64(bundle.signedPreKeySignature),
+                        oneTimePreKeys: bundle.oneTimePreKeys.map((p) => ({ 
+                            id: p.id, 
+                            key: u8ToB64(p.key) 
+                        }))
+                    }
+                };
+                
+                log(`📡 Enviando para: ${API_CONFIG.ENDPOINTS.KEYS_PUBLISH}`, 'info');
+                
+                const res = await fetch(API_CONFIG.ENDPOINTS.KEYS_PUBLISH, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        Authorization: `Bearer ${token}` 
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                log(`📥 Resposta: ${res.status} ${res.statusText}`, res.ok ? 'success' : 'error');
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    log(`❌ Erro: ${errorText}`, 'error');
+                } else {
+                    log('✅ Bundle publicado com sucesso!', 'success');
+                }
+                
+            } catch (error) {
+                log(`💥 Erro na publicação: ${error}`, 'error');
+            }
+        };
+
+        window.testFullRegistration = async function() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                log('❌ Preencha usuário e senha', 'error');
+                return;
+            }
+
+            // Reset status
+            updateStatus('register-status', '🔄 Registro: Processando...', 'warning');
+            updateStatus('login-status', '⏳ Login: Aguardando', 'warning');
+            updateStatus('bundle-status', '⏳ Bundle: Aguardando', 'warning');
+
+            log(`🚀 Iniciando registro completo para: ${username}`, 'info');
+            
+            try {
+                // 1. Registro
+                log('📝 Etapa 1: Registrando usuário...', 'info');
+                const registerRes = await fetch(API_CONFIG.ENDPOINTS.REGISTER, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                log(`📥 Registro resposta: ${registerRes.status} ${registerRes.statusText}`, registerRes.ok ? 'success' : 'error');
+                
+                if (!registerRes.ok) {
+                    const data = await registerRes.json();
+                    log(`❌ Erro no registro: ${JSON.stringify(data)}`, 'error');
+                    updateStatus('register-status', '❌ Registro: Falhou', 'error');
+                    return;
+                }
+                
+                updateStatus('register-status', '✅ Registro: Concluído', 'success');
+                
+                // 2. Login
+                log('🔑 Etapa 2: Fazendo login automático...', 'info');
+                updateStatus('login-status', '🔄 Login: Processando...', 'warning');
+                
+                const loginRes = await fetch(API_CONFIG.ENDPOINTS.LOGIN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const loginData = await loginRes.json();
+                log(`📥 Login resposta: ${loginRes.status} ${loginRes.statusText}`, loginRes.ok ? 'success' : 'error');
+                
+                if (!loginRes.ok || !loginData.token) {
+                    log(`❌ Erro no login: ${JSON.stringify(loginData)}`, 'error');
+                    updateStatus('login-status', '❌ Login: Falhou', 'error');
+                    return;
+                }
+                
+                updateStatus('login-status', '✅ Login: Concluído', 'success');
+                log(`🎫 Token obtido: ${loginData.token.substring(0, 20)}...`, 'success');
+                
+                // 3. Bundle
+                log('🔐 Etapa 3: Publicando bundle...', 'info');
+                updateStatus('bundle-status', '🔄 Bundle: Processando...', 'warning');
+                
+                const material = createKeyMaterial(8);
+                const bundle = exportBundle(material);
+                
+                const payload = {
+                    bundle: {
+                        identityKey: u8ToB64(bundle.identityKey),
+                        signingPublicKey: bundle.signingPublicKey ? u8ToB64(bundle.signingPublicKey) : undefined,
+                        signedPreKey: u8ToB64(bundle.signedPreKey),
+                        signedPreKeySignature: u8ToB64(bundle.signedPreKeySignature),
+                        oneTimePreKeys: bundle.oneTimePreKeys.map((p) => ({ 
+                            id: p.id, 
+                            key: u8ToB64(p.key) 
+                        }))
+                    }
+                };
+                
+                const bundleRes = await fetch(API_CONFIG.ENDPOINTS.KEYS_PUBLISH, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        Authorization: `Bearer ${loginData.token}` 
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                log(`📥 Bundle resposta: ${bundleRes.status} ${bundleRes.statusText}`, bundleRes.ok ? 'success' : 'error');
+                
+                if (!bundleRes.ok) {
+                    const errorText = await bundleRes.text();
+                    log(`❌ Erro no bundle: ${errorText}`, 'error');
+                    updateStatus('bundle-status', '❌ Bundle: Falhou', 'error');
+                    return;
+                }
+                
+                updateStatus('bundle-status', '✅ Bundle: Publicado', 'success');
+                log('🎉 Processo completo finalizado com sucesso!', 'success');
+                
+            } catch (error) {
+                log(`💥 Erro durante processo: ${error}`, 'error');
+            }
+        };
+    </script>
+</body>
+</html>

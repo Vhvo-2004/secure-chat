@@ -1,2 +1,92 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
 .env
-*.key
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Compiled JavaScript files (TypeScript compilation artifacts)
+# Ignore compiled .js files in source directories, they should not be versioned
+frontend/src/**/*.js
+frontend/src/**/*.js.map
+backend/src/**/*.js
+backend/src/**/*.js.map
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+
+# But allow essential config files that are meant to be .js
+!**/*.config.js
+!**/vite.config.js
+!**/vitest.config.js
+!**/jest.config.js
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Package manager lockfiles (optional - some teams prefer to commit these)
+# package-lock.json
+# yarn.lock
+
+# Frontend specific
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Backend specific
+backend/dist/
+backend/build/
+
+# Crypto package specific
+packages/crypto/dist/
+packages/crypto/build/
+
+# Temporary files
+.tmp/
+.temp/
+
+# Database files (for local development)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.dockerignore
+docker-compose.override.yml
