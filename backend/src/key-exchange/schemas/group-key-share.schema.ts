@@ -34,15 +34,50 @@ export class GroupKeyShare {
 export type GroupKeyShareDocument = GroupKeyShare & Document;
 export const GroupKeyShareSchema = SchemaFactory.createForClass(GroupKeyShare);
 
+function normalizeRef(ref: any): any {
+  if (!ref) {
+    return ref;
+  }
+
+  if (typeof ref === 'string') {
+    return ref;
+  }
+
+  if (typeof ref === 'object') {
+    if (typeof ref.toHexString === 'function') {
+      return ref.toHexString();
+    }
+
+    const cloned: any = { ...ref };
+    const rawId = cloned._id ?? cloned.id;
+    if (rawId) {
+      cloned.id = typeof rawId === 'string' ? rawId : rawId?.toString?.();
+    }
+    delete cloned._id;
+
+    if (Array.isArray(cloned.members)) {
+      cloned.members = cloned.members.map((member: any) => normalizeRef(member));
+    }
+
+    if (cloned.creator) {
+      cloned.creator = normalizeRef(cloned.creator);
+    }
+
+    return cloned;
+  }
+
+  return ref;
+}
+
 GroupKeyShareSchema.set('toJSON', {
   virtuals: true,
   versionKey: false,
   transform: (_, value) => {
     const ret: any = { ...value };
     ret.id = ret._id?.toString();
-    ret.group = ret.group?.toString?.() ?? ret.group;
-    ret.sender = ret.sender?.toString?.() ?? ret.sender;
-    ret.receiver = ret.receiver?.toString?.() ?? ret.receiver;
+    ret.group = normalizeRef(ret.group);
+    ret.sender = normalizeRef(ret.sender);
+    ret.receiver = normalizeRef(ret.receiver);
     delete ret._id;
     return ret;
   },

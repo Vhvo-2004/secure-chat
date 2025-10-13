@@ -102,6 +102,8 @@ npm run dev
    - Ao clicar em **Importar chave**, o aplicativo:
      - Recupera o pacote X3DH, decapsula a chave 3DES e grava o fingerprint localmente.
      - Marca o convite como consumido em `/key-exchange/pending/:shareId/consume`.
+     - O cartão do convite exibe o nome do grupo e o fingerprint esperado; após a importação o grupo correspondente deixa o
+       estado “Chave aguardando” e passa a mostrar o fingerprint salvo, confirmando que a chave foi sincronizada.
 
 4. **Enviar e receber mensagens**
    - Com a chave 3DES disponível, basta selecionar o grupo e digitar a mensagem.
