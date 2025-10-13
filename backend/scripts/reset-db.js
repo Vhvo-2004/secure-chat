@@ -15,6 +15,10 @@ function parseArgs() {
 
     const next = args[i + 1];
     switch (arg) {
+      case '--prompt':
+      case '--ask':
+        options.prompt = true;
+        break;
       case '--uri':
       case '-u':
         if (next && !next.startsWith('-')) {
@@ -65,6 +69,75 @@ function parseArgs() {
       default:
         break;
     }
+  }
+
+  return options;
+}
+
+async function promptForMissingCredentials(options) {
+  const readline = require('readline');
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true
+  });
+
+  const question = (query, { mask = false } = {}) =>
+    new Promise((resolve) => {
+      if (!mask) {
+        rl.question(query, resolve);
+        return;
+      }
+
+      const stdin = rl.input;
+      const onData = (char) => {
+        char = char + '';
+        switch (char) {
+          case '\n':
+          case '\r':
+          case '\u0004':
+            stdin.removeListener('data', onData);
+            break;
+          default:
+            process.stdout.clearLine(0);
+            process.stdout.cursorTo(0);
+            process.stdout.write(query + '*'.repeat(rl.line.length));
+            break;
+        }
+      };
+
+      stdin.on('data', onData);
+      rl.question(query, (answer) => {
+        stdin.removeListener('data', onData);
+        process.stdout.write('\n');
+        resolve(answer);
+      });
+    });
+
+  try {
+    if (!options.user) {
+      const user = await question('MongoDB username: ');
+      if (user) {
+        options.user = user.trim();
+      }
+    }
+
+    if (!options.password) {
+      const password = await question('MongoDB password: ', { mask: true });
+      if (password) {
+        options.password = password.trim();
+      }
+    }
+
+    if (!options.authSource) {
+      const authSource = await question('Authentication database (authSource): ');
+      if (authSource) {
+        options.authSource = authSource.trim();
+      }
+    }
+  } finally {
+    rl.close();
   }
 
   return options;
@@ -136,6 +209,9 @@ function isAuthError(error) {
 
 async function main() {
   const cliOptions = parseArgs();
+  if (cliOptions.prompt) {
+    await promptForMissingCredentials(cliOptions);
+  }
   let cleanup;
   try {
     const ensureResult = await ensureMongo();
@@ -170,6 +246,11 @@ async function main() {
       console.error(
         'You can pass explicit credentials with --user <username> --pass <password> and --authSource <db>, or provide a full --uri.'
       );
+      if (!cliOptions.prompt && !cliOptions.uri && !cliOptions.user && !cliOptions.password) {
+        console.error(
+          'Tip: rerun the command with --prompt to be asked for credentials interactively.'
+        );
+      }
       console.error('Original error message:', error.message || error);
     } else {
       console.error('[reset-db] Unexpected error while purging the database.');

@@ -116,6 +116,7 @@ Use esses comandos para validar se o código compila antes de abrir pull request
 - Limpar coleções do MongoDB sem alterar a estrutura: `npm run db:purge --prefix backend`.
   - Se o cluster exigir autenticação, informe as credenciais com `--user <usuario> --pass <senha> --authSource <db>`.
   - Também é possível usar uma URI completa: `npm run db:purge --prefix backend -- --uri "mongodb://usuario:senha@host:27017/chat?authSource=admin"`.
+  - Para não expor a senha no histórico, execute `npm run db:purge --prefix backend -- --prompt` e forneça os dados interativamente.
 
 ## Checklist pós-instalação
 

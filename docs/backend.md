@@ -151,6 +151,7 @@ O NestJS usa o logger padrão. Os scripts de bootstrap imprimem mensagens amigá
 - Aceita parâmetros opcionais:
   - `--user`, `--pass` e `--authSource` para clusters com autenticação.
   - `--uri` para informar uma string de conexão completa (preceder por `--` ao usar via npm script).
+  - `--prompt` (ou `--ask`) para responder interativamente usuário, senha e `authSource` quando não quiser expor as credenciais na linha de comando.
 
 ## Considerações finais
 
