@@ -63,6 +63,7 @@ services:
       environment:
         - VITE_SERVER_HOST=0.0.0.0
         - BACKEND_SERVER_PORT={BACKEND_CONTAINER_PORT:-3000}
+        - NODE_ENV=development
       depends_on: 
         - backend
       restart: unless-stopped

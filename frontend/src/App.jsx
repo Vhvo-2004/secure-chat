@@ -118,7 +118,6 @@ export default function App() {
     const storedBundle = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.bundle}${currentUser}`), null);
     const storedKeys = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.groupKeys}${currentUser}`), {});
     const storedUser = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.user}${currentUser}`), null);
-
     if (currentUser && storedUser) setCurrentUserData(storedUser);
     if (storedBundle) setPrivateBundle(deserializePrivateBundle(storedBundle));
     if (storedKeys) setGroupKeys(storedKeys);
@@ -173,8 +172,7 @@ export default function App() {
   function searchUser(username){
     if (typeof username !== 'string' || username.trim() === '')
       return null;
-
-    const searchedUser = safeJsonParse(sessionStorage.getItem(`${STORAGE_KEYS.user}${username}`), null);
+    const searchedUser = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.user}${username}`), null);
     return searchedUser;
   }
 
@@ -333,11 +331,16 @@ export default function App() {
         return false;
     sessionStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(username))
     setCurrentUser(username);
-    // persistUser(normalizedUser);
-    // persistBundle(serialized, normalizedUser.username);
-    // setUsernameInput('');
-    // setStatus('Identidade registrada com sucesso.');
-    // refreshUsers();
+    const storedBundle = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.bundle}${currentUser}`), null);
+    const storedKeys = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.groupKeys}${currentUser}`), {});
+    const storedUser = safeJsonParse(localStorage.getItem(`${STORAGE_KEYS.user}${currentUser}`), null);
+    if (currentUser && storedUser) setCurrentUserData(storedUser);
+    if (storedBundle) setPrivateBundle(deserializePrivateBundle(storedBundle));
+    if (storedKeys) setGroupKeys(storedKeys);
+    setUsernameInput('');
+    setStatus('Identidade detectada com sucesso.');
+    refreshUsers();
+    return true;
   }
 
   async function handleRegisterUser(evt) {
@@ -798,7 +801,7 @@ export default function App() {
   }
 
   function renderGroups() {
-    if (!currentUserData) return null;
+    if (!currentUserData || !groupKeys) return null;
     return (
       <div className="card">
         <h3>Grupos</h3>
@@ -915,6 +918,7 @@ export default function App() {
               try {
                 decrypted = decryptMessage3DES(message.ciphertext, key, message.iv);
               } catch (err) {
+                console.log(err.stack);
                 decrypted = '[falha ao decifrar]';
               }
             }
