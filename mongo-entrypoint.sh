@@ -30,7 +30,7 @@ echo ">>> Initiating replica set..."
 mongosh --eval "
   rs.initiate({
     _id: '${MONGO_REPLICA_SET_NAME}',
-    members: [{ _id: 0, host: 'localhost:${MONGO_DATABASE_PORT}' }]
+    members: [{ _id: 0, host: 'mongodb:${MONGO_DATABASE_PORT}' }]
   });
 "
 
