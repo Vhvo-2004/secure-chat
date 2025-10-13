@@ -84,8 +84,18 @@ export class KeyExchangeService {
     if (!share) {
       throw new NotFoundException('Share not found');
     }
-    share.consumed = true;
-    share.consumedAt = new Date();
-    return share.save();
+    if (!share.consumed) {
+      share.consumed = true;
+      share.consumedAt = new Date();
+      await this.groupModel
+        .updateOne(
+          { _id: share.group },
+          { $addToSet: { members: share.receiver } },
+          { timestamps: false },
+        )
+        .exec();
+    }
+    const saved = await share.save();
+    return saved.toJSON();
   }
 }
