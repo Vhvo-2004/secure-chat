@@ -148,6 +148,9 @@ O NestJS usa o logger padrão. Os scripts de bootstrap imprimem mensagens amigá
 - Resolve a URI de conexão com as mesmas variáveis utilizadas pelo `AppModule`.
 - Limpa todas as coleções com `deleteMany({})`, preservando índices e a estrutura do banco.
 - Pode ser executado via `npm run db:purge` (dentro da pasta `backend/`).
+- Aceita parâmetros opcionais:
+  - `--user`, `--pass` e `--authSource` para clusters com autenticação.
+  - `--uri` para informar uma string de conexão completa (preceder por `--` ao usar via npm script).
 
 ## Considerações finais
 

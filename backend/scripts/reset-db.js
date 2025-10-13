@@ -3,17 +3,89 @@
 const mongoose = require('mongoose');
 const { ensureMongo, StartupError } = require('./ensure-mongo');
 
-function resolveDatabaseUri() {
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg.startsWith('-')) {
+      continue;
+    }
+
+    const next = args[i + 1];
+    switch (arg) {
+      case '--uri':
+      case '-u':
+        if (next && !next.startsWith('-')) {
+          options.uri = next;
+          i++;
+        }
+        break;
+      case '--host':
+        if (next && !next.startsWith('-')) {
+          options.host = next;
+          i++;
+        }
+        break;
+      case '--port':
+        if (next && !next.startsWith('-')) {
+          options.port = next;
+          i++;
+        }
+        break;
+      case '--db':
+      case '--database':
+        if (next && !next.startsWith('-')) {
+          options.dbName = next;
+          i++;
+        }
+        break;
+      case '--username':
+      case '--user':
+        if (next && !next.startsWith('-')) {
+          options.user = next;
+          i++;
+        }
+        break;
+      case '--password':
+      case '--pass':
+        if (next && !next.startsWith('-')) {
+          options.password = next;
+          i++;
+        }
+        break;
+      case '--authSource':
+      case '--auth-source':
+        if (next && !next.startsWith('-')) {
+          options.authSource = next;
+          i++;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  return options;
+}
+
+function resolveDatabaseUri(cliOptions = {}) {
+  if (cliOptions.uri) {
+    return cliOptions.uri;
+  }
+
   if (process.env.DATABASE_URI) {
     return process.env.DATABASE_URI;
   }
 
-  const host = process.env.DATABASE_HOST || 'localhost';
-  const port = process.env.DATABASE_PORT || '27017';
-  const dbName = process.env.DATABASE_NAME || 'chat';
-  const authSource = process.env.DATABASE_AUTH_SOURCE || dbName;
-  const user = process.env.DATABASE_USER;
-  const password = process.env.DATABASE_PASSWORD;
+  const host = cliOptions.host || process.env.DATABASE_HOST || 'localhost';
+  const port = cliOptions.port || process.env.DATABASE_PORT || '27017';
+  const dbName = cliOptions.dbName || process.env.DATABASE_NAME || 'chat';
+  const authSource =
+    cliOptions.authSource || process.env.DATABASE_AUTH_SOURCE || dbName;
+  const user = cliOptions.user || process.env.DATABASE_USER;
+  const password = cliOptions.password || process.env.DATABASE_PASSWORD;
 
   if (user && password) {
     const encodedUser = encodeURIComponent(user);
@@ -51,12 +123,24 @@ function maskConnectionString(uri) {
   }
 }
 
+function isAuthError(error) {
+  return (
+    (error &&
+      (error.code === 13 ||
+        error.codeName === 'Unauthorized' ||
+        /requires authentication/i.test(error.message || ''))) ||
+    (error?.response?.code === 13 &&
+      error?.response?.codeName === 'Unauthorized')
+  );
+}
+
 async function main() {
+  const cliOptions = parseArgs();
   let cleanup;
   try {
     const ensureResult = await ensureMongo();
     cleanup = ensureResult?.cleanup;
-    const uri = ensureResult?.uri || resolveDatabaseUri();
+    const uri = ensureResult?.uri || resolveDatabaseUri(cliOptions);
 
     console.log('[reset-db] Connecting to', maskConnectionString(uri));
 
@@ -78,8 +162,19 @@ async function main() {
       return;
     }
 
-    console.error('[reset-db] Unexpected error while purging the database.');
-    console.error(error);
+    if (isAuthError(error)) {
+      console.error('[reset-db] Authentication failed when connecting to MongoDB.');
+      console.error(
+        'Ensure that the provided credentials have permission to list and purge collections.'
+      );
+      console.error(
+        'You can pass explicit credentials with --user <username> --pass <password> and --authSource <db>, or provide a full --uri.'
+      );
+      console.error('Original error message:', error.message || error);
+    } else {
+      console.error('[reset-db] Unexpected error while purging the database.');
+      console.error(error);
+    }
     process.exitCode = 1;
   } finally {
     try {
