@@ -45,7 +45,7 @@ A interface está dividida em três colunas principais e um painel adicional par
 4. **Diário criptográfico**
    - Timeline detalhada dos passos executados em X3DH e 3DES.
    - Cada entrada explica o motivo do passo, mostra fingerprints, chaves e envelopes gerados/consumidos.
-   - Ideal para workshops e depuração: erros também são registrados para rápida identificação.
+   - Ideal para workshops e depuração: erros também são registrados para rápida identificação e o painel indica quando um fallback de OPK foi aplicado durante a importação de chaves.
 
 ## Estado e armazenamento
 
@@ -79,7 +79,8 @@ Os dados armazenados localmente nunca são enviados ao backend, garantindo que a
 - Chamada `GET /key-exchange/pending/:userId` para obter convites com dados populados.
 - Ao aceitar, reconstrução do X3DH usando `crypto/x3dh.js` e decapsulamento AES-GCM para obter a chave 3DES.
 - Persistência da chave em `localStorage`, atualização do grupo e remoção do convite do estado.
-- O diário registra a validação do envelope recebido, a root key derivada e a gravação da chave 3DES.
+- A rotina tenta automaticamente todas as one-time pre-keys armazenadas quando o índice indicado falha, removendo do bundle local a OPK efetivamente utilizada.
+- O diário registra a validação do envelope recebido, a root key derivada, o índice de OPK consumido (com aviso de `fallback aplicado` quando necessário) e a gravação da chave 3DES.
 
 ### 4. Envio e leitura de mensagens
 - Recuperação da chave 3DES pelo `groupId` no armazenamento local.
@@ -93,7 +94,7 @@ Os dados armazenados localmente nunca são enviados ao backend, garantindo que a
 - Todas as chamadas HTTP passam por `fetchJson`, que adiciona mensagens amigáveis na interface em caso de falha.
 - Caso a API retorne 404/409 ao compartilhar chaves, o frontend remove membros inválidos e exibe alertas sem travar o fluxo.
 - O estado impede que convites sem `receiverId` sejam processados.
-- Falhas críticas também são adicionadas ao diário, facilitando a depuração passo a passo.
+- Falhas críticas também são adicionadas ao diário, com artefatos adicionais (ID do share, grupo envolvido e indicador se um fallback foi tentado) para facilitar a depuração passo a passo.
 
 ## Estilos (`App.css` e `index.css`)
 

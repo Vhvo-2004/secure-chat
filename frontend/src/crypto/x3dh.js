@@ -137,14 +137,6 @@ export function deserializePrivateBundle(serialized) {
   };
 }
 
-function requirePreKey(bundle, index) {
-  const kp = bundle.oneTimePreKeys.find((item) => item.index === index) ?? bundle.oneTimePreKeys[index];
-  if (!kp) {
-    throw new Error('One-time pre-key not found');
-  }
-  return kp;
-}
-
 function ensureReceiverBundle(bundle) {
   const { identityKeyBox, identityKeySign, signedPreKey, signature } = bundle;
   if (!identityKeyBox || !identityKeySign || !signedPreKey || !signature) {
@@ -201,19 +193,69 @@ export async function performX3DHInitiatorAndCreatePacket(initiatorBundle, recei
   };
 }
 
-export async function performX3DHResponderAndDecrypt(receiverBundle, packet) {
+function normalizeOpkIndex(rawIndex) {
+  if (rawIndex === null || rawIndex === undefined) {
+    return null;
+  }
+  const parsed = typeof rawIndex === 'string' ? parseInt(rawIndex, 10) : rawIndex;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function collectPreKeyCandidates(bundle, indicatedIndex) {
+  const map = new Map();
+  bundle.oneTimePreKeys.forEach((kp, idx) => {
+    if (!kp) return;
+    const resolvedIndex = kp.index ?? idx;
+    if (!map.has(resolvedIndex)) {
+      map.set(resolvedIndex, kp);
+    }
+  });
+
+  const candidates = [];
+  if (indicatedIndex !== null) {
+    candidates.push({ index: indicatedIndex, preKey: map.get(indicatedIndex) ?? null });
+    map.delete(indicatedIndex);
+  } else {
+    candidates.push({ index: null, preKey: null });
+  }
+
+  for (const [idx, kp] of map.entries()) {
+    candidates.push({ index: idx, preKey: kp });
+  }
+
+  if (indicatedIndex !== null && !candidates.some((candidate) => candidate.index === null)) {
+    candidates.push({ index: null, preKey: null });
+  }
+
+  return candidates;
+}
+
+function shouldRetryFallback(err) {
+  if (!err) return false;
+  const message = err.message ?? '';
+  if (message.includes('One-time pre-key not found')) {
+    return true;
+  }
+  if (err.name === 'OperationError' || message.includes('OperationError')) {
+    return true;
+  }
+  if (err.name === 'DOMException' && (message.includes('decrypt') || message.includes('operation'))) {
+    return true;
+  }
+  return false;
+}
+
+async function attemptResponderDecryption(bundle, packet, candidate) {
   const EK_A_pub = fromB64(packet.EK_A_pub);
   const IK_A_pub = fromB64(packet.IK_A_pub);
-  const IK_B = receiverBundle.identityKeyBox;
-  const SPK_B = receiverBundle.signedPreKey;
-  const opkIndex = packet.opk_index;
-  const OPK = opkIndex !== null && opkIndex !== undefined ? requirePreKey(receiverBundle, opkIndex) : null;
-  const OPK_priv = OPK ? OPK.secretKey : null;
+  const IK_B = bundle.identityKeyBox;
+  const SPK_B = bundle.signedPreKey;
+  const opkSecret = candidate.preKey ? candidate.preKey.secretKey : null;
 
   const dh1 = nacl.scalarMult(SPK_B.secretKey, IK_A_pub);
   const dh2 = nacl.scalarMult(IK_B.secretKey, EK_A_pub);
   const dh3 = nacl.scalarMult(SPK_B.secretKey, EK_A_pub);
-  const dh4 = OPK_priv ? nacl.scalarMult(OPK_priv, EK_A_pub) : new Uint8Array(0);
+  const dh4 = opkSecret ? nacl.scalarMult(opkSecret, EK_A_pub) : new Uint8Array(0);
   const sharedSecret = concatUint8Arrays([dh1, dh2, dh3, dh4]);
 
   const initKeyBytes = await hkdfBytes(sharedSecret, 'X3DH init');
@@ -226,15 +268,54 @@ export async function performX3DHResponderAndDecrypt(receiverBundle, packet) {
   const IK_A_pub_fromX = plain.slice(0, 32);
   const IK_B_pub_fromX = plain.slice(32, 64);
 
+  const expectedInitiator = toB64(IK_A_pub);
+  const derivedInitiator = toB64(IK_A_pub_fromX);
+  const expectedResponder = toB64(IK_B.publicKey);
+  const derivedResponder = toB64(IK_B_pub_fromX);
+
+  if (expectedInitiator !== derivedInitiator || expectedResponder !== derivedResponder) {
+    return null;
+  }
+
   return {
     rootKeyBytes,
     payload: {
-      IK_A_header: toB64(IK_A_pub),
-      IK_A_fromPayload: toB64(IK_A_pub_fromX),
-      IK_B_fromPayload: toB64(IK_B_pub_fromX),
+      IK_A_header: expectedInitiator,
+      IK_A_fromPayload: derivedInitiator,
+      IK_B_fromPayload: derivedResponder,
     },
-    usedOpkIndex: opkIndex ?? null,
+    usedOpkIndex: candidate.index ?? null,
   };
+}
+
+export async function performX3DHResponderAndDecrypt(receiverBundle, packet) {
+  const indicatedIndex = normalizeOpkIndex(packet.opk_index);
+  const candidates = collectPreKeyCandidates(receiverBundle, indicatedIndex);
+
+  for (const candidate of candidates) {
+    try {
+      const result = await attemptResponderDecryption(receiverBundle, packet, candidate);
+      if (result) {
+        return {
+          ...result,
+          resolvedWithFallback: (indicatedIndex ?? null) !== (candidate.index ?? null),
+        };
+      }
+    } catch (err) {
+      if (shouldRetryFallback(err)) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (indicatedIndex === null) {
+    throw new Error('Não foi possível derivar a root key com o material armazenado. Solicite um novo convite.');
+  }
+
+  throw new Error(
+    'Não foi possível usar a one-time pre-key indicada neste convite. Solicite que o remetente reenvie o compartilhamento.',
+  );
 }
 
 export async function wrapDataWithRootKey(rootKeyBytes, dataBytes, aadLabel = 'group-key') {

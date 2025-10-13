@@ -79,6 +79,34 @@ export default function App() {
     });
   }, []);
 
+  const consumeOneTimePreKey = useCallback((rawIndex) => {
+    const normalized =
+      rawIndex === null || rawIndex === undefined
+        ? null
+        : typeof rawIndex === 'string'
+        ? parseInt(rawIndex, 10)
+        : rawIndex;
+    if (normalized === null || Number.isNaN(normalized)) {
+      return;
+    }
+    setPrivateBundle((prev) => {
+      if (!prev) return prev;
+      const nextPreKeys = prev.oneTimePreKeys.filter((kp, idx) => {
+        const kpIndex = kp.index ?? idx;
+        return kpIndex !== normalized;
+      });
+      if (nextPreKeys.length === prev.oneTimePreKeys.length) {
+        return prev;
+      }
+      const nextBundle = { ...prev, oneTimePreKeys: nextPreKeys };
+      const serialized = serializePrivateBundle(nextBundle);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.bundle, JSON.stringify(serialized));
+      }
+      return deserializePrivateBundle(serialized);
+    });
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storedUser = safeJsonParse(localStorage.getItem(STORAGE_KEYS.user), null);
@@ -587,10 +615,14 @@ export default function App() {
     const share = pendingShares.find((item) => item.id === shareId);
     if (!share) return;
     try {
-      const { rootKeyBytes, payload, usedOpkIndex } = await performX3DHResponderAndDecrypt(
-        privateBundle,
-        share.packet,
-      );
+      const { rootKeyBytes, payload, usedOpkIndex, resolvedWithFallback } =
+        await performX3DHResponderAndDecrypt(
+          privateBundle,
+          share.packet,
+        );
+      if (usedOpkIndex !== null && usedOpkIndex !== undefined) {
+        consumeOneTimePreKey(usedOpkIndex);
+      }
       const plainBytes = await unwrapDataWithRootKey(rootKeyBytes, {
         cipher: share.encryptedGroupKey,
         iv: share.keyIv,
@@ -611,7 +643,17 @@ export default function App() {
           { label: 'Root key (base64)', value: toB64(rootKeyBytes) },
           {
             label: 'OPK consumida',
-            value: usedOpkIndex !== null && usedOpkIndex !== undefined ? usedOpkIndex : 'Nenhuma',
+            value:
+              usedOpkIndex !== null && usedOpkIndex !== undefined
+                ? `${usedOpkIndex}${resolvedWithFallback ? ' (fallback aplicado)' : ''}`
+                : 'Nenhuma',
+          },
+          {
+            label: 'OPK indicada pelo remetente',
+            value:
+              share.packet?.opk_index !== null && share.packet?.opk_index !== undefined
+                ? share.packet?.opk_index
+                : 'Nenhuma',
           },
           { label: 'IK do remetente (payload)', value: payload?.IK_A_fromPayload ?? 'Indisponível' },
           { label: 'AAD recebido', value: share.keyAad },
@@ -631,15 +673,24 @@ export default function App() {
       });
       await fetchJson(`${API_BASE}/key-exchange/pending/${share.id}/consume`, { method: 'POST' });
       setPendingShares((prev) => prev.filter((item) => item.id !== share.id));
-      setStatus('Chave do grupo salva com sucesso.');
+      setStatus(
+        resolvedWithFallback
+          ? 'Chave do grupo salva com sucesso. (OPK reconciliada via fallback local.)'
+          : 'Chave do grupo salva com sucesso.',
+      );
       refreshGroups();
     } catch (err) {
-      setStatus(`Não foi possível aceitar a chave: ${err.message}`);
+      const message = err?.message ?? 'Erro desconhecido';
+      setStatus(`Não foi possível aceitar a chave: ${message}`);
       appendCryptoLog({
         phase: 'Recepção X3DH',
         title: 'Falha ao aceitar envelope',
-        description: `Erro ao importar a chave: ${err.message}`,
+        description: `Erro ao importar a chave: ${message}`,
         reason: 'Registrar a falha ajuda a identificar em qual etapa do X3DH a importação quebrou.',
+        artifacts: [
+          { label: 'Share', value: shareId },
+          { label: 'Grupo', value: share.group?.name ?? share.group ?? '—' },
+        ],
       });
     }
   }

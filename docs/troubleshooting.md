@@ -49,6 +49,16 @@ Esta seção reúne erros comuns observados durante a configuração e uso do Se
 - **Causa**: receptor não era adicionado ao grupo após consumir o convite.
 - **Status**: corrigido. `consumeShare` chama `GroupsService.addMember` e devolve o grupo atualizado.
 
+### `Falha ao aceitar envelope` / "Erro ao importar a chave"
+- **Causa**: convite com metadados inconsistentes (por exemplo, OPK reutilizada, índices divergentes ou identidade regenerada).
+- **Status**: o frontend agora tenta automaticamente todos os one-time pre-keys armazenados até encontrar uma combinação válida e registra quando um fallback foi necessário.
+- **Correção**:
+  1. Certifique-se de estar usando a versão mais recente do frontend (recarregue a página para carregar o bundle atualizado).
+  2. Ao aceitar o convite, observe o "Diário criptográfico": se aparecer `fallback aplicado`, a chave foi conciliada com sucesso e a OPK correspondente foi removida do bundle local.
+  3. Se, mesmo após o fallback, o erro persistir, peça ao remetente para reenviar o convite (um envelope antigo baseado em uma identidade descartada não pode ser recuperado).
+  4. Como último recurso, regenere sua identidade (limpe o storage local pelo botão "Encerrar sessão local") e solicite novos convites.
+
+
 ## Problemas no frontend
 
 ### Botão "Gerar identidade & registrar" não funciona
