@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 
-export default function GroupList({ groups, groupKeys, selectedGroupId, onSelectGroup }) {
+export default function GroupList({ groups, groupKeys, selectedGroupId, onSelectGroup, renderActions }) {
   if (!groups.length) return null;
   return (
     <div className="card">
@@ -23,6 +23,11 @@ export default function GroupList({ groups, groupKeys, selectedGroupId, onSelect
                   {group.keyFingerprint && !missingKey && keyInfo.fingerprint !== group.keyFingerprint ? ' ⚠' : ''}
                 </span>
               </div>
+              {renderActions ? (
+                <div className="group-actions" onClick={(event) => event.stopPropagation()}>
+                  {renderActions(group)}
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -43,4 +48,9 @@ GroupList.propTypes = {
   groupKeys: PropTypes.object.isRequired,
   selectedGroupId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onSelectGroup: PropTypes.func.isRequired,
+  renderActions: PropTypes.func,
+};
+
+GroupList.defaultProps = {
+  renderActions: undefined,
 };

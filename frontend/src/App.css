@@ -504,6 +504,23 @@ textarea {
   align-self: stretch;
 }
 
+.groups-overview-page .page-header {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.groups-overview-page .page-header p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.groups-overview-content {
+  display: grid;
+  gap: 1.5rem;
+}
+
 .group-actions {
   display: flex;
   gap: 0.75rem;
