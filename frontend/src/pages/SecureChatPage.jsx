@@ -4,9 +4,10 @@ import UserList from '../components/users/UserList';
 import GroupCreateForm from '../components/groups/GroupCreateForm';
 import GroupList from '../components/groups/GroupList';
 import PendingSharesList from '../components/groups/PendingSharesList';
-import ChatPanel from '../components/chat/ChatPanel';
 import CryptoLog from '../components/logs/CryptoLog';
-import { useSecureChat } from '../hooks/useSecureChat';
+import FriendInvitePanel from '../components/users/FriendInvitePanel';
+import DashboardLayout from '../components/layout/DashboardLayout';
+import { useSecureChatContext } from '../contexts/SecureChatContext';
 
 export default function SecureChatPage() {
   const {
@@ -17,35 +18,27 @@ export default function SecureChatPage() {
       groupKeys,
       pendingShares,
       selectedGroupId,
-      messages,
       status,
       isBusy,
       cryptoLog,
       usernameInput,
       groupNameInput,
       groupMemberSelections,
-      messageInput,
-      selectedGroup,
     },
     actions: {
       setUsernameInput,
       setGroupNameInput,
       toggleMemberSelection,
-      setMessageInput,
       setSelectedGroupId,
       handleRegisterUser,
       handleLogout,
       handleCreateGroup,
-      handleSendMessage,
       handleShare,
-      resolveGroupKey,
     },
-  } = useSecureChat();
-
-  const groupKey = selectedGroup ? resolveGroupKey(selectedGroup.id) : null;
+  } = useSecureChatContext();
 
   return (
-    <div className="app-container">
+    <DashboardLayout>
       <AppHeader
         currentUser={currentUserData}
         usernameInput={usernameInput}
@@ -57,43 +50,37 @@ export default function SecureChatPage() {
 
       <StatusBanner message={status} />
 
-      <main>
-        <section className="column">
-          <UserList users={users} currentUserId={currentUserData?.id ?? null} />
-          <PendingSharesList pendingShares={pendingShares} onAccept={handleShare} />
+      <div className="content-layout home-layout">
+        <section className="content-column">
+          <div className="stack">
+            <UserList users={users} currentUserId={currentUserData?.id ?? null} />
+            <FriendInvitePanel currentUser={currentUserData} />
+            <PendingSharesList pendingShares={pendingShares} onAccept={handleShare} />
+          </div>
         </section>
-        <section className="column">
-          <GroupCreateForm
-            users={users}
-            currentUserId={currentUserData?.id ?? null}
-            groupName={groupNameInput}
-            onGroupNameChange={setGroupNameInput}
-            selectedMembers={groupMemberSelections}
-            onToggleMember={toggleMemberSelection}
-            onSubmit={handleCreateGroup}
-            isBusy={isBusy}
-          />
-          <GroupList
-            groups={groups}
-            groupKeys={groupKeys}
-            selectedGroupId={selectedGroupId}
-            onSelectGroup={setSelectedGroupId}
-          />
+
+        <section className="content-column">
+          <div className="stack">
+            <GroupCreateForm
+              users={users}
+              currentUserId={currentUserData?.id ?? null}
+              groupName={groupNameInput}
+              onGroupNameChange={setGroupNameInput}
+              selectedMembers={groupMemberSelections}
+              onToggleMember={toggleMemberSelection}
+              onSubmit={handleCreateGroup}
+              isBusy={isBusy}
+            />
+            <GroupList
+              groups={groups}
+              groupKeys={groupKeys}
+              selectedGroupId={selectedGroupId}
+              onSelectGroup={setSelectedGroupId}
+            />
+          </div>
+          <CryptoLog entries={cryptoLog} />
         </section>
-        <section className="column wide">
-          <ChatPanel
-            currentUser={currentUserData}
-            selectedGroup={selectedGroup}
-            messages={messages}
-            users={users}
-            messageInput={messageInput}
-            onMessageChange={setMessageInput}
-            onSendMessage={handleSendMessage}
-            groupKey={groupKey}
-          />
-        </section>
-        <CryptoLog entries={cryptoLog} />
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
