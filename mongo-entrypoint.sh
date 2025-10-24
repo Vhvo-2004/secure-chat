@@ -5,7 +5,7 @@ set -e
 # This check makes the script idempotent
 if [ -f /data/db/mongod.lock ]; then
   echo ">>> MongoDB already configured, starting normally."
-  exec mongod --replSet ${MONGO_REPLICA_SET_NAME} --bind_ip_all --keyFile /etc/mongo/mongo.key
+  exec mongod --replSet "${MONGO_REPLICA_SET_NAME}" --bind_ip_all --keyFile /etc/mongo/mongo.key
 fi
 
 # Ensure keyfile has correct permissions
@@ -72,4 +72,4 @@ wait $MONGO_PID
 
 # 7. Restart the final mongod process with auth enabled
 echo ">>> Initialization complete. Restarting MongoDB with authentication..."
-exec mongod --replSet ${MONGO_REPLICA_SET_NAME} --bind_ip_all --keyFile /etc/mongo/mongo.key
+exec mongod --replSet "${MONGO_REPLICA_SET_NAME}" --bind_ip_all --keyFile /etc/mongo/mongo.key

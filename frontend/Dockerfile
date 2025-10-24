@@ -6,12 +6,14 @@ COPY package*.json ./
 
 ENV NODE_ENV=production
 
-RUN npm install
+RUN npm ci
 
 COPY . .
 
-RUN npm run build
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=${VITE_API_URL}
 
+RUN npm run build
 
 FROM nginx:stable-alpine
 

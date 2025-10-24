@@ -16,7 +16,8 @@ services:
       - DATABASE_PASSWORD=${MONGO_BACKEND_PASSWORD:-password}
       - DATABASE_REPLICA_NAME=${MONGO_REPLICA_SET_NAME:-rs0}
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     restart: unless-stopped
 
   mongodb:
@@ -28,7 +29,7 @@ services:
       - chat
     volumes:
       - mongodb:/data/db
-      - ./mongo.key:/etc/mongo/mongo.key # openssl rand -base64 756 > mongo.key && chmod 400 mongo.key
+      - ./mongo.key:/etc/mongo/mongo.key # Substitua por sua própria chave se necessário
       - ./mongo-entrypoint.sh:/usr/local/bin/entrypoint.sh
       # - ./mongo-init.sh:/docker-entrypoint-initdb.d/init-user.sh:ro
     environment:
@@ -54,19 +55,18 @@ services:
     restart: unless-stopped
 
   frontend:
-      build: ./frontend
-      container_name: chat-frontend
-      networks:
-        - chat
-      ports:
-        - "127.0.0.1:5173:80"
-      environment:
-        - VITE_SERVER_HOST=0.0.0.0
-        - BACKEND_SERVER_PORT={BACKEND_CONTAINER_PORT:-3000}
-        - NODE_ENV=development
-      depends_on: 
-        - backend
-      restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${FRONTEND_VITE_API_URL:-/api}
+    container_name: chat-frontend
+    networks:
+      - chat
+    ports:
+      - "127.0.0.1:${FRONTEND_CONTAINER_PORT:-5173}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 networks:
   chat:

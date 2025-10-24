@@ -29,25 +29,25 @@ Aplicação de chat segura que combina **Triple Diffie-Hellman (X3DH)** para dis
 
 ### 1. Via Docker Compose
 
-```bash
-docker compose up --build
-```
+Siga este passo a passo para levantar toda a stack (frontend, backend e MongoDB) com um único comando:
 
-Serviços expostos:
-- Backend NestJS: `http://localhost:3000`
-- MongoDB: `localhost:27017`
+1. **Instale as dependências do Docker** – garanta que `docker` e `docker compose` estejam disponíveis no seu PATH.
+2. **Clone o repositório** – `git clone <url> && cd secure-chat` (ou certifique-se de estar na raiz deste projeto).
+3. **(Opcional) Configure variáveis** – exporte `FRONTEND_VITE_API_URL` caso queira apontar o frontend para uma API diferente de `http://localhost:3000`.
+4. **Construa e suba os serviços** –
 
-Para executar o frontend, abra um novo terminal:
+   ```bash
+   docker compose up --build
+   ```
 
-```bash
-cd frontend
-npm install  # apenas para instalar dependências locais
-VITE_API_URL=http://localhost:3000 npm run dev -- --host 0.0.0.0 --port 5173
-```
+5. **Acesse as aplicações** – após o build, aguarde a mensagem `Started HTTP server on port 5173` no log do frontend e abra:
+   - Frontend (Vite + Nginx): `http://localhost:5173`
+   - Backend NestJS: `http://localhost:3000`
+   - MongoDB: `localhost:27017`
 
-Acesse `http://localhost:5173`.
+O container do frontend já está configurado para fazer proxy das chamadas `fetch` para `/api/*` até o backend do Docker. Caso precise alterar a origem da API em tempo de build, defina a variável `FRONTEND_VITE_API_URL` antes de executar o Compose (por exemplo, `FRONTEND_VITE_API_URL=https://minha-api docker compose up --build`).
 
-> **Dica:** o frontend assume por padrão `http://localhost:3000` como base da API. Ajuste a variável `VITE_API_URL` caso exponha o backend em outra porta/host.
+> ⚠️ Uma chave de replicaset de exemplo (`mongo.key`) acompanha o repositório apenas para fins de desenvolvimento local. Gere outra chave antes de ir para produção (`openssl rand -base64 756 > mongo.key`).
 
 > **Nota:** caso não possua acesso externo ao npm, as dependências já estão vendorizadas no repositório (`node_modules`).
 
