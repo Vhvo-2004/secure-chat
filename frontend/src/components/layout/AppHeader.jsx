@@ -9,7 +9,7 @@ export default function AppHeader({
   onLogout,
 }) {
   return (
-    <header>
+    <header className="app-header">
       <h1>Secure Chat · Sessões X3DH + 3DES</h1>
       {currentUser ? (
         <div className="user-info">
