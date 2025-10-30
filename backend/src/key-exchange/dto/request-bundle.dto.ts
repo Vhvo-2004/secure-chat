@@ -1,4 +1,4 @@
 export interface RequestBundleDto {
-  receiverId: string;
-  initiatorId?: string;
+	receiverId: string;
+	initiatorId?: string;
 }

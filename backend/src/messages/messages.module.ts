@@ -6,13 +6,13 @@ import { Message, MessageSchema } from './schemas/message.schema';
 import { Group, GroupSchema } from '../groups/schemas/group.schema';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([
-      { name: Message.name, schema: MessageSchema },
-      { name: Group.name, schema: GroupSchema },
-    ]),
-  ],
-  controllers: [MessagesController],
-  providers: [MessagesService],
+	imports: [
+		MongooseModule.forFeature([
+			{ name: Message.name, schema: MessageSchema },
+			{ name: Group.name, schema: GroupSchema },
+		]),
+	],
+	controllers: [MessagesController],
+	providers: [MessagesService],
 })
 export class MessagesModule {}

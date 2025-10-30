@@ -5,25 +5,25 @@ import type { AddPreKeysDto } from './dto/add-prekeys.dto';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+	constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  create(@Body() body: CreateUserDto) {
-    return this.usersService.create(body);
-  }
+	@Post()
+	create(@Body() body: CreateUserDto) {
+		return this.usersService.create(body);
+	}
 
-  @Get()
-  findAll() {
-    return this.usersService.findAll();
-  }
+	@Get()
+	findAll() {
+		return this.usersService.findAll();
+	}
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
-  }
+	@Get(':id')
+	findOne(@Param('id') id: string) {
+		return this.usersService.findOne(id);
+	}
 
-  @Post(':id/one-time-pre-keys')
-  addPreKeys(@Param('id') id: string, @Body() body: AddPreKeysDto) {
-    return this.usersService.addPreKeys(id, body);
-  }
+	@Post(':id/one-time-pre-keys')
+	addPreKeys(@Param('id') id: string, @Body() body: AddPreKeysDto) {
+		return this.usersService.addPreKeys(id, body);
+	}
 }
