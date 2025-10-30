@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import styles from './CryptoLog.module.css'
 
 export default function CryptoLog({ entries }) {
   return (
@@ -30,7 +31,7 @@ export default function CryptoLog({ entries }) {
                 {Array.isArray(entry.artifacts) && entry.artifacts.length > 0 && (
                   <ul className="log-artifacts">
                     {entry.artifacts.map((artifact, index) => (
-                      <li key={index}>
+                      <li className={styles.key} key={index}>
                         <strong>{artifact.label}:</strong> {artifact.value}
                       </li>
                     ))}
