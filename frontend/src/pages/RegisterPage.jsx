@@ -17,7 +17,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
     setSuccess('');
@@ -37,7 +37,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const result = register(username, password);
+    const result = await register(username, password);
     if (!result.success) {
       setError(result.message);
       return;

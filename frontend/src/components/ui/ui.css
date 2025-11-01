@@ -60,6 +60,12 @@
   padding: 0;
 }
 
+.button--sm {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: calc(var(--radius-sm) + 2px);
+}
+
 .card {
   background: var(--color-surface);
   border-radius: var(--radius-lg);

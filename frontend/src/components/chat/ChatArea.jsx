@@ -1,156 +1,68 @@
-import { useEffect, useMemo, useState } from 'react';
-import PropTypes from 'prop-types';
+import { useMemo, useState } from 'react';
 import Button from '../ui/Button.jsx';
 import Badge from '../ui/Badge.jsx';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import { fetchMessages, sendMessage } from '../../services/api.js';
+import Alert from '../ui/Alert.jsx';
+import { useSecureChatContext } from '../../contexts/SecureChatContext.jsx';
+import { decryptMessage3DES } from '../../crypto/triple-des.js';
 
-function createDemoMessages(group) {
-  const baseName = group?.name || 'Grupo';
-  const now = Date.now();
-  return [
-    {
-      id: `${group?.id || 'demo'}-1`,
-      sender: 'João',
-      content: `Olá, equipe ${baseName}!`,
-      timestamp: new Date(now - 60 * 60 * 1000),
-      encrypted: false,
-    },
-    {
-      id: `${group?.id || 'demo'}-2`,
-      sender: 'Maria',
-      content: 'Compartilhei os arquivos na pasta segura.',
-      timestamp: new Date(now - 45 * 60 * 1000),
-      encrypted: true,
-    },
-    {
-      id: `${group?.id || 'demo'}-3`,
-      sender: 'Pedro',
-      content: 'Vamos sincronizar as chaves mais tarde?',
-      timestamp: new Date(now - 15 * 60 * 1000),
-      encrypted: false,
-    },
-  ];
-}
+export default function ChatArea() {
+  const {
+    state: { selectedGroup, messages, currentUserData, users },
+    actions: { sendMessage, resolveGroupKey },
+  } = useSecureChatContext();
 
-function normaliseMembers(group) {
-  if (!group || !Array.isArray(group.members)) return [];
-  return group.members.map((member, index) => {
-    if (typeof member === 'string' && member.trim().length > 0) {
-      if (member.length <= 20 && /[a-zA-Z]/.test(member)) {
-        return member;
-      }
-      return `Membro ${index + 1}`;
-    }
-    if (member && typeof member === 'object') {
-      if (member.username) return member.username;
-    }
-    return `Membro ${index + 1}`;
-  });
-}
-
-export default function ChatArea({ group }) {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState([]);
-  const [members, setMembers] = useState([]);
   const [messageText, setMessageText] = useState('');
-  const [status, setStatus] = useState('Selecione um grupo para visualizar as mensagens.');
-  const [backendMode, setBackendMode] = useState('stub');
-  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
-  useEffect(() => {
-    if (!group) {
-      setMessages([]);
-      setMembers([]);
-      setStatus('Selecione um grupo para começar.');
-      setBackendMode('stub');
-      return;
-    }
+  const groupKey = selectedGroup ? resolveGroupKey(selectedGroup.id) : null;
 
-    let active = true;
-    const memberList = normaliseMembers(group);
-    setMembers(memberList.length > 0 ? memberList : ['Alice', 'Bruno', 'Carla']);
-    setLoading(true);
-    setStatus('Carregando mensagens...');
+  const memberNames = useMemo(() => {
+    if (!selectedGroup || !Array.isArray(selectedGroup.members)) return [];
+    return selectedGroup.members.map((memberId) => {
+      const user = users.find((candidate) => candidate.id === memberId);
+      return user?.username ?? memberId;
+    });
+  }, [selectedGroup, users]);
 
-    async function load() {
-      try {
-        const data = await fetchMessages(group.id);
-        if (!active) return;
-        if (!Array.isArray(data) || data.length === 0) {
-          setMessages(createDemoMessages(group));
-          setBackendMode('stub');
-          setStatus('Nenhuma mensagem encontrada. Mostrando exemplo local.');
-          return;
-        }
-        const normalized = data.map((item, index) => ({
-          id: item.id || `${group.id}-${index}`,
-          sender: item.sender || 'Participante',
-          content: item.ciphertext ? 'Mensagem criptografada' : 'Mensagem recebida',
-          timestamp: item.createdAt ? new Date(item.createdAt) : new Date(),
-          encrypted: Boolean(item.ciphertext),
-        }));
-        setMessages(normalized);
-        setBackendMode('api');
-        setStatus('Mensagens carregadas do backend.');
-      } catch (error) {
-        console.info('Não foi possível carregar mensagens do backend. Utilizando dados locais.', error);
-        if (!active) return;
-        setMessages(createDemoMessages(group));
-        setBackendMode('stub');
-        setStatus('Backend indisponível. Exibindo mensagens de demonstração.');
-      } finally {
-        if (active) {
-          setLoading(false);
+  const decryptedMessages = useMemo(() => {
+    return messages.map((message) => {
+      let content = 'Mensagem criptografada. Aceite a chave do grupo para ler.';
+      if (groupKey) {
+        try {
+          content = decryptMessage3DES(message.ciphertext, groupKey, message.iv);
+        } catch (error) {
+          content = '[falha ao decifrar]';
         }
       }
-    }
-
-    load();
-
-    return () => {
-      active = false;
-    };
-  }, [group]);
-
-  const sortedMessages = useMemo(
-    () => [...messages].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()),
-    [messages],
-  );
+      const timestamp = message.createdAt ? new Date(message.createdAt) : new Date();
+      const senderUser = users.find((candidate) => candidate.id === message.sender);
+      const senderName = senderUser?.username ?? message.sender ?? 'Participante';
+      const isOwn = currentUserData && (message.sender === currentUserData.id || senderName === currentUserData.username);
+      return {
+        id: message.id,
+        content,
+        timestamp,
+        senderName: isOwn ? 'Você' : senderName,
+        isOwn,
+        encrypted: Boolean(message.ciphertext),
+      };
+    });
+  }, [messages, groupKey, users, currentUserData]);
 
   const handleSend = async () => {
     const trimmed = messageText.trim();
-    if (!trimmed || !group || !user) return;
-
-    const newMessage = {
-      id: crypto.randomUUID(),
-      sender: user.username,
-      content: trimmed,
-      timestamp: new Date(),
-      encrypted: false,
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
-    setMessageText('');
-
-    if (backendMode === 'api') {
-      try {
-        await sendMessage(group.id, {
-          senderId: user.id,
-          ciphertext: trimmed,
-          iv: crypto.randomUUID(),
-        });
-        setStatus('Mensagem enviada ao backend (sem criptografia real).');
-        return;
-      } catch (error) {
-        console.info('Falha ao enviar mensagem ao backend, mantendo local.', error);
-        setBackendMode('stub');
-        setStatus('Backend indisponível. Mensagem armazenada apenas localmente.');
-      }
+    if (!trimmed || !selectedGroup) return;
+    const result = await sendMessage(trimmed);
+    if (!result.success) {
+      setFeedback({ type: 'error', message: result.message ?? 'Não foi possível enviar a mensagem.' });
+      return;
     }
+    setFeedback({ type: 'success', message: 'Mensagem enviada e armazenada no backend.' });
+    setMessageText('');
+    setTimeout(() => setFeedback(null), 2500);
   };
 
-  if (!group) {
+  if (!selectedGroup) {
     return (
       <div className="chat-area">
         <div className="chat-header">
@@ -161,7 +73,7 @@ export default function ChatArea({ group }) {
         </div>
         <div className="chat-messages" style={{ alignItems: 'center', justifyContent: 'center' }}>
           <div className="text-muted" style={{ textAlign: 'center' }}>
-            <p>Escolha um grupo na lista para visualizar as conversas.</p>
+            <p>Escolha um grupo na lista para visualizar as conversas protegidas.</p>
           </div>
         </div>
       </div>
@@ -172,47 +84,52 @@ export default function ChatArea({ group }) {
     <div className="chat-area">
       <div className="chat-header">
         <div>
-          <h2 style={{ margin: 0 }}>{group.name}</h2>
-          <p className="text-muted" style={{ margin: '0.35rem 0 0' }}>{status}</p>
+          <h2 style={{ margin: 0 }}>{selectedGroup.name}</h2>
+          <p className="text-muted" style={{ margin: '0.35rem 0 0' }}>
+            {groupKey
+              ? 'As mensagens são cifradas com 3DES antes de sair do navegador.'
+              : 'Aceite o convite correspondente para liberar a chave do grupo.'}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {members.map((member) => (
+          {memberNames.map((member) => (
             <Badge key={member}>{member}</Badge>
           ))}
         </div>
       </div>
 
       <div className="chat-messages">
-        {loading ? (
-          <div className="text-muted">Carregando...</div>
+        {decryptedMessages.length === 0 ? (
+          <div className="text-muted" style={{ textAlign: 'center', width: '100%' }}>
+            Nenhuma mensagem registrada para este grupo.
+          </div>
         ) : (
-          sortedMessages.map((message) => {
-            const isOwn = user && message.sender === user.username;
-            return (
-              <div key={message.id} className={`message-row ${isOwn ? 'is-own' : ''}`.trim()}>
-                <div>
-                  <div className="message-meta">
-                    <strong>{isOwn ? 'Você' : message.sender}</strong>
-                    <span>{message.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                    {message.encrypted ? <span className="message-encrypted">🔒</span> : null}
-                  </div>
-                  <div className="message-bubble">{message.content}</div>
+          decryptedMessages.map((message) => (
+            <div key={message.id} className={`message-row ${message.isOwn ? 'is-own' : ''}`.trim()}>
+              <div>
+                <div className="message-meta">
+                  <strong>{message.senderName}</strong>
+                  <span>{message.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  {message.encrypted ? <span className="message-encrypted">🔒</span> : null}
                 </div>
+                <div className="message-bubble">{message.content}</div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
 
       <div className="chat-input">
+        {feedback ? <Alert variant={feedback.type}>{feedback.message}</Alert> : null}
         <textarea
           value={messageText}
           onChange={(event) => setMessageText(event.target.value)}
           placeholder={
-            backendMode === 'api'
-              ? 'Digite sua mensagem (será enviada como texto simples no backend)'
-              : 'Digite sua mensagem (modo demonstração)'
+            groupKey
+              ? 'Digite sua mensagem. Ela será cifrada automaticamente antes do envio.'
+              : 'Aguarde a chave do grupo para habilitar o envio.'
           }
+          disabled={!groupKey}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
@@ -220,17 +137,10 @@ export default function ChatArea({ group }) {
             }
           }}
         />
-        <Button onClick={handleSend}>Enviar</Button>
+        <Button onClick={handleSend} disabled={!groupKey}>
+          Enviar
+        </Button>
       </div>
     </div>
   );
 }
-
-ChatArea.propTypes = {
-  group: PropTypes.shape({
-    id: PropTypes.string,
-    name: PropTypes.string,
-    members: PropTypes.array,
-  }),
-};
-

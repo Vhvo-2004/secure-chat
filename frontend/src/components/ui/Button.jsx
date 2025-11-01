@@ -12,6 +12,7 @@ const variantClass = {
 const sizeClass = {
   default: '',
   icon: 'button--icon',
+  sm: 'button--sm',
 };
 
 export default function Button({ variant = 'default', size = 'default', className = '', children, ...props }) {
@@ -28,7 +29,7 @@ export default function Button({ variant = 'default', size = 'default', classNam
 
 Button.propTypes = {
   variant: PropTypes.oneOf(['default', 'secondary', 'outline', 'ghost', 'destructive']),
-  size: PropTypes.oneOf(['default', 'icon']),
+  size: PropTypes.oneOf(['default', 'icon', 'sm']),
   className: PropTypes.string,
   children: PropTypes.node.isRequired,
 };

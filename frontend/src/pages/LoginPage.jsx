@@ -18,6 +18,10 @@ export default function LoginPage() {
   const handleSubmit = (event) => {
     event.preventDefault();
     setError('');
+    if (!username.trim()) {
+      setError('Informe o usuário cadastrado.');
+      return;
+    }
     const result = login(username, password);
     if (!result.success) {
       setError(result.message);
