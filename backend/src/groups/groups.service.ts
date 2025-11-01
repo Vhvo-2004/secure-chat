@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -9,12 +9,28 @@ export class GroupsService {
   constructor(@InjectModel(Group.name) private readonly groupModel: Model<GroupDocument>) {}
 
   async create(dto: CreateGroupDto): Promise<Group> {
-    const membersSet = new Set(dto.members.map((id) => id));
-    membersSet.add(dto.creator);
+    const normalizedMembers = this.normalizeMembers(dto.members ?? []);
+    const creatorId = this.resolveCreatorId(dto, normalizedMembers);
+
+    if (!dto.name || !dto.name.trim()) {
+      throw new BadRequestException('Group name is required');
+    }
+
+    if (normalizedMembers.length === 0) {
+      throw new BadRequestException('At least one member is required to create a group');
+    }
+
+    const membersSet = new Set<string>(normalizedMembers);
+    membersSet.add(creatorId);
+
+    if (membersSet.size < 2) {
+      throw new BadRequestException('A group must contain at least two distinct members');
+    }
+
     const members = Array.from(membersSet).map((id) => new Types.ObjectId(id));
     const created = new this.groupModel({
-      name: dto.name,
-      creator: new Types.ObjectId(dto.creator),
+      name: dto.name.trim(),
+      creator: new Types.ObjectId(creatorId),
       members,
       keyFingerprint: dto.keyFingerprint ?? null,
     });
@@ -45,5 +61,40 @@ export class GroupsService {
 
   private toPlain(group: GroupDocument): Group {
     return group.toJSON() as unknown as Group;
+  }
+
+  private normalizeMembers(members: Array<string | null | undefined>): string[] {
+    return members
+      .map((value) => this.normalizeObjectId(value, 'Member id'))
+      .filter((value): value is string => Boolean(value));
+  }
+
+  private resolveCreatorId(dto: CreateGroupDto, members: string[]): string {
+    const candidate = dto.creator ?? dto.creatorId ?? members[0];
+    const normalized = this.normalizeObjectId(candidate, 'Creator id');
+    if (!normalized) {
+      throw new BadRequestException('Creator id is required');
+    }
+    return normalized;
+  }
+
+  private normalizeObjectId(value: unknown, context: string): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const raw = Array.isArray(value) ? value[0] : value;
+    const candidate = typeof raw === 'string' ? raw : raw?.toString?.();
+    const trimmed = candidate?.trim?.() ?? '';
+
+    if (!trimmed) {
+      return null;
+    }
+
+    if (!Types.ObjectId.isValid(trimmed)) {
+      throw new BadRequestException(`${context} is not a valid identifier`);
+    }
+
+    return trimmed;
   }
 }
