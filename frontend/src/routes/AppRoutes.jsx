@@ -1,19 +1,22 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import SecureChatPage from '../pages/SecureChatPage';
-import GroupOverviewPage from '../pages/groups/GroupOverviewPage';
-import GroupChatPage from '../pages/groups/GroupChatPage';
-import GroupMembersPage from '../pages/groups/GroupMembersPage';
+import LandingPage from '../pages/LandingPage.jsx';
+import LoginPage from '../pages/LoginPage.jsx';
+import RegisterPage from '../pages/RegisterPage.jsx';
+import HomePage from '../pages/HomePage.jsx';
+import ChatPage from '../pages/ChatPage.jsx';
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<SecureChatPage />} />
-        <Route path="/groups" element={<GroupOverviewPage />} />
-        <Route path="/groups/:groupId/chat" element={<GroupChatPage />} />
-        <Route path="/groups/:groupId/members" element={<GroupMembersPage />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/chat" element={<ChatPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
+
