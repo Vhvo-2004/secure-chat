@@ -8,6 +8,7 @@ import { GroupsModule } from './groups/groups.module';
 import { KeyExchangeModule } from './key-exchange/key-exchange.module';
 import { MessagesModule } from './messages/messages.module';
 import { ChatGateway } from './chat/chat.gateway';
+import { FriendshipsModule } from './friendships/friendships.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ChatGateway } from './chat/chat.gateway';
     GroupsModule,
     KeyExchangeModule,
     MessagesModule,
+    FriendshipsModule,
   ],
   controllers: [AppController],
   providers: [AppService, ChatGateway],

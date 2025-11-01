@@ -1,16 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../ui/Button.jsx';
 import Input from '../ui/Input.jsx';
 import Modal from '../ui/Modal.jsx';
 import Alert from '../ui/Alert.jsx';
 import Badge from '../ui/Badge.jsx';
 import { useSecureChatContext } from '../../contexts/SecureChatContext.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 
 export default function GroupList() {
   const {
     state: { groups, selectedGroupId, users, currentUserData, pendingShares, status, isBusy },
     actions: { setSelectedGroupId, createGroup, acceptShare },
   } = useSecureChatContext();
+  const { user: authUser } = useAuth();
+
+  const friendIds = useMemo(() => {
+    if (!authUser || !Array.isArray(authUser.friends)) {
+      return new Set();
+    }
+    return new Set(authUser.friends.map((friend) => friend.id));
+  }, [authUser]);
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,8 +30,12 @@ export default function GroupList() {
 
   const availableMembers = useMemo(() => {
     if (!currentUserData) return [];
-    return users.filter((user) => user.id !== currentUserData.id);
-  }, [users, currentUserData]);
+    return users.filter((user) => user.id !== currentUserData.id && friendIds.has(user.id));
+  }, [users, currentUserData, friendIds]);
+
+  useEffect(() => {
+    setSelectedMembers((prev) => prev.filter((id) => friendIds.has(id)));
+  }, [friendIds]);
 
   const filteredGroups = useMemo(() => {
     if (!search) return groups;

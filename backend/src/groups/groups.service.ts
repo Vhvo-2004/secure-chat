@@ -3,10 +3,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { Group, GroupDocument } from './schemas/group.schema';
+import { FriendshipsService } from '../friendships/friendships.service';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class GroupsService {
-  constructor(@InjectModel(Group.name) private readonly groupModel: Model<GroupDocument>) {}
+  constructor(
+    @InjectModel(Group.name) private readonly groupModel: Model<GroupDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly friendshipsService: FriendshipsService,
+  ) {}
 
   async create(dto: CreateGroupDto): Promise<Group> {
     const normalizedMembers = this.normalizeMembers(dto.members ?? []);
@@ -25,6 +31,15 @@ export class GroupsService {
 
     if (membersSet.size < 2) {
       throw new BadRequestException('A group must contain at least two distinct members');
+    }
+
+    await this.ensureUsersExist(Array.from(membersSet));
+
+    const friendSet = await this.friendshipsService.acceptedFriendIds(creatorId);
+    const otherMembers = normalizedMembers.filter((id) => id !== creatorId);
+    const missingFriends = otherMembers.filter((memberId) => !friendSet.has(memberId));
+    if (missingFriends.length > 0) {
+      throw new BadRequestException('Só é possível criar grupos com amigos aceitos.');
     }
 
     const members = Array.from(membersSet).map((id) => new Types.ObjectId(id));
@@ -76,6 +91,15 @@ export class GroupsService {
       throw new BadRequestException('Creator id is required');
     }
     return normalized;
+  }
+
+  private async ensureUsersExist(ids: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(ids));
+    const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));
+    const count = await this.userModel.countDocuments({ _id: { $in: objectIds } }).exec();
+    if (count !== uniqueIds.length) {
+      throw new BadRequestException('Um ou mais participantes não existem.');
+    }
   }
 
   private normalizeObjectId(value: unknown, context: string): string | null {

@@ -23,6 +23,32 @@ export async function fetchGroups(userId) {
   return request(`/groups${query}`);
 }
 
+export async function fetchFriends(userId, status = 'accepted') {
+  const query = new URLSearchParams();
+  if (userId) {
+    query.set('userId', userId);
+  }
+  if (status) {
+    query.set('status', status);
+  }
+  const suffix = query.toString();
+  return request(`/friends${suffix ? `?${suffix}` : ''}`);
+}
+
+export async function inviteFriend(payload) {
+  return request('/friends/invite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function respondFriendship(id, action, payload) {
+  return request(`/friends/${id}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
+  });
+}
+
 export async function createGroup(payload) {
   return request('/groups', {
     method: 'POST',

@@ -23,13 +23,13 @@ export default function HomePage() {
 
   const friends = useMemo(() => user?.friends ?? [], [user]);
 
-  const handleAddFriend = (event) => {
+  const handleAddFriend = async (event) => {
     event.preventDefault();
     if (!friendName.trim()) {
       setFeedback({ type: 'error', message: 'Digite o nome do usuário.' });
       return;
     }
-    const result = addFriend(friendName.trim());
+    const result = await addFriend(friendName.trim());
     if (!result.success) {
       setFeedback({ type: 'error', message: result.message });
       return;
@@ -38,9 +38,13 @@ export default function HomePage() {
     setFriendName('');
   };
 
-  const handleRemoveFriend = (name) => {
-    removeFriend(name);
-    setFeedback({ type: 'success', message: `${name} foi removido da sua lista.` });
+  const handleRemoveFriend = async (friend) => {
+    const result = await removeFriend(friend.id ?? friend.username ?? friend);
+    if (result.success) {
+      setFeedback({ type: 'success', message: result.message });
+    } else {
+      setFeedback({ type: 'error', message: result.message });
+    }
   };
 
   if (!ready) {
@@ -133,13 +137,15 @@ export default function HomePage() {
               <div className="empty-state">Adicione amigos para começar suas conversas seguras.</div>
             ) : (
               <div className="form-grid">
-                {friends.map((name) => (
-                  <div key={name} className="friend-item">
+                {friends.map((friend) => (
+                  <div key={friend.friendshipId ?? friend.id} className="friend-item">
                     <div className="friend-item__info">
-                      <span className="friend-avatar">{name.charAt(0).toUpperCase()}</span>
-                      <span>{name}</span>
+                      <span className="friend-avatar">
+                        {friend.username?.charAt(0)?.toUpperCase() ?? '?'}
+                      </span>
+                      <span>{friend.username}</span>
                     </div>
-                    <Button variant="ghost" onClick={() => handleRemoveFriend(name)}>
+                    <Button variant="ghost" onClick={() => handleRemoveFriend(friend)}>
                       Remover
                     </Button>
                   </div>
